@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.vite/
+*.log
+.DS_Store
+Thumbs.db
+package-lock.json
+CubeSuite/
+Cube Baby CubeSuite and Firmwares/
+firmware_guidance/
+*.wav
+*.bin
+*.up
+*.qm
+*.DAT
+backup/
+android/.gradle/
+android/build/
+android/app/build/
+.capacitor/
+capacitor-cordova-android-plugins/
+~$*

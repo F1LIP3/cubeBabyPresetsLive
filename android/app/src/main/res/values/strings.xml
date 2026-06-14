@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cube Baby Presets</string>
+    <string name="title_activity_main">Cube Baby Presets</string>
+    <string name="package_name">com.cubebaby.presets</string>
+    <string name="custom_url_scheme">com.cubebaby.presets</string>
+</resources>
