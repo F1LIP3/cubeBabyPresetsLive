@@ -97,6 +97,10 @@ export const IR_ROM_SAMPLES = 1024;             // float32 samples per IR cabine
 export const IR_SLOT_COUNT = 8;                 // pedal has 8 IR cabinets
 export const IR_WRITE_CHUNK_SIZE = 128;          // max bytes per WriteMemory message
 
+// IR data type aliases for type safety
+export type IRRamData = Float32Array;   // 512 samples, 2048 bytes
+export type IRRomData = Float32Array;  // 1024 samples, 4096 bytes
+
 export type Message =
   | { type: 'Init' }
   | { type: 'ACK'; value: boolean }

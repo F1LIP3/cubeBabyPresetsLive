@@ -1042,3 +1042,98 @@ body {
     font-size: 10px;
   }
 }
+
+
+/* -- Help Modal -- */
+.help-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.help-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.help-modal h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.help-modal h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.help-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.help-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.help-features li {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding-left: 16px;
+  position: relative;
+}
+
+.help-features li::before {
+  content: '?';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.help-modal code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  background: var(--bg-surface);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.help-modal a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.help-modal a:hover {
+  text-decoration: underline;
+}

@@ -136,17 +136,34 @@ export class CubeBabyMidi {
     this.midiService.send([...sysex]);
   }
 
-  async sendAndWait(msg: Message, timeoutMs = 5000): Promise<Message> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        const idx = this.pending.findIndex(e => e.request === msg);
-        if (idx !== -1) this.pending.splice(idx, 1);
-        reject(new Error('Response timeout'));
-      }, timeoutMs);
+  async sendAndWait(msg: Message, timeoutMs = 5000, retries = 3): Promise<Message> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            const idx = this.pending.findIndex(e => e.request === msg);
+            if (idx !== -1) this.pending.splice(idx, 1);
+            reject(new Error('Response timeout'));
+          }, timeoutMs);
 
-      this.pending.push({ request: msg, resolve, reject, timeout });
-      this.send(msg);
-    });
+          this.pending.push({ request: msg, resolve, reject, timeout });
+          this.send(msg);
+        });
+      } catch (error: any) {
+        lastError = error;
+        if (error.message !== 'Response timeout' || attempt === retries) {
+          throw error;
+        }
+        if (attempt < retries) {
+          console.log(`MIDI retry ${attempt + 1}/${retries} for ${msg.type}`);
+          await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
+        }
+      }
+    }
+    
+    throw lastError;
   }
 
   async readPreset(preset: PresetName): Promise<Settings> {
@@ -290,6 +307,9 @@ export class CubeBabyMidi {
 
   /** Write IR data (2048 bytes) to IR RAM in chunks for immediate effect */
   async writeIRToRam(irData: Uint8Array): Promise<void> {
+    if (irData.length !== IR_SLOT_SIZE) {
+      throw new Error(`Invalid IR RAM data length: expected ${IR_SLOT_SIZE} bytes, got ${irData.length}`);
+    }
     const chunks = Math.ceil(irData.length / IR_WRITE_CHUNK_SIZE);
     for (let i = 0; i < chunks; i++) {
       const offset = i * IR_WRITE_CHUNK_SIZE;
@@ -327,6 +347,9 @@ export class CubeBabyMidi {
 
   /** Write IR data (4096 bytes) to ROM (persistent storage, slot 0-7) in chunks */
   async writeIRToRom(slot: number, irData: Uint8Array): Promise<void> {
+    if (irData.length !== IR_ROM_SLOT_SIZE) {
+      throw new Error(`Invalid IR ROM data length: expected ${IR_ROM_SLOT_SIZE} bytes, got ${irData.length}`);
+    }
     const chunks = Math.ceil(irData.length / IR_WRITE_CHUNK_SIZE);
     for (let i = 0; i < chunks; i++) {
       const offset = i * IR_WRITE_CHUNK_SIZE;

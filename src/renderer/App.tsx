@@ -94,6 +94,7 @@ export default function App() {
   const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState<'info' | 'success' | 'error'>('info');
   const [showDebug, setShowDebug] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -104,7 +105,7 @@ export default function App() {
   const [irSlot, setIrSlot] = useState(0);
   const [irName, setIrName] = useState('');
   const [irStatus, setIrStatus] = useState<'idle' | 'processing' | 'erasing' | 'writing' | 'verifying' | 'done' | 'error'>('idle');
-  const [irProgress, setIrProgress] = useState({ current: 0, total: 16 });
+  const [irProgress, setIrProgress] = useState({ current: 0, total: 100 });
   const [irNames, setIrNames] = useState<Record<number, string>>(() => {
     try { return JSON.parse(localStorage.getItem('irNames') || '{}'); } catch { return {}; }
   });
@@ -131,18 +132,30 @@ export default function App() {
       };
       await baby.connect();
       midiRef.current = baby;
+      // Set initial empty values
+      setAllKnobs({ A: { ...EMPTY_KNOBS }, B: { ...EMPTY_KNOBS }, C: { ...EMPTY_KNOBS } });
+      setKnobValues({ ...EMPTY_KNOBS });
       setConnected(true);
 
-      // Read presets sequentially — pedal can only handle one SysEx at a time
-      const a = await baby.readPreset('A');
-      const b = await baby.readPreset('B');
-      const c = await baby.readPreset('C');
-      const knobsA = settingsToKnobValues(a);
-      const knobsB = settingsToKnobValues(b);
-      const knobsC = settingsToKnobValues(c);
-      setAllKnobs({ A: knobsA, B: knobsB, C: knobsC });
-      setKnobValues(knobsA);
-      setStatusMsg('Connected! All presets loaded', 'success');
+      // Read presets sequentially ? pedal can only handle one SysEx at a time
+      const presets: Record<string, any> = {};
+      let loadedCount = 0;
+      for (const preset of ['A', 'B', 'C'] as const) {
+        try {
+          const settings = await baby.readPreset(preset);
+          presets[preset] = settingsToKnobValues(settings);
+          loadedCount++;
+          log(`Read preset ${preset} successfully`);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          log(`Failed to read preset ${preset}: ${message}`);
+          presets[preset] = { ...EMPTY_KNOBS };
+        }
+      }
+      
+      setAllKnobs({ A: presets['A'], B: presets['B'], C: presets['C'] });
+      setKnobValues(presets['A']);
+      setStatusMsg(`Connected! ${loadedCount}/3 presets loaded`, 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setStatusMsg(`Connection failed: ${message}`, 'error');
@@ -167,11 +180,16 @@ export default function App() {
     const cached = allKnobs[preset];
     setKnobValues(cached);
     if (midiRef.current) {
-      const settings = knobValuesToSettings(cached);
-      await midiRef.current.switchPreset(preset, settings);
+      try {
+        const settings = knobValuesToSettings(cached);
+        await midiRef.current.switchPreset(preset, settings);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        log(`Switch preset ${preset} failed: ${message}`);
+      }
     }
     setStatusMsg(`Switched to preset ${preset}`, 'info');
-  }, [allKnobs, setStatusMsg]);
+  }, [allKnobs, setStatusMsg, log]);
 
   const handleSave = useCallback(async () => {
     if (!midiRef.current) return;
@@ -326,39 +344,20 @@ export default function App() {
 
   const handleFootswitch = useCallback(async (section: 'A' | 'B' | 'C') => {
     if (!midiRef.current) return;
-    if (mode === 'preset') {
-      await handleSelectPreset(section);
-    } else {
-      const field = section === 'A' ? 'irSection' : section === 'B' ? 'delaySection' : 'toneSection';
-      const newVal = !knobValues[field];
-      setKnobValues(prev => ({ ...prev, [field]: newVal }));
-      try {
-        await midiRef.current.toggleSection(section, newVal);
-      } catch {
-        setKnobValues(prev => ({ ...prev, [field]: !newVal }));
-        setStatusMsg(`Footswitch ${section} toggle failed`, 'error');
-      }
-    }
-  }, [mode, knobValues, handleSelectPreset, setStatusMsg]);
-
-  const handleRefreshAll = useCallback(async () => {
-    if (!midiRef.current) return;
-    setLoading(true);
     try {
-      const all = await midiRef.current.readAllPresets();
-      const knobsA = settingsToKnobValues(all.A);
-      const knobsB = settingsToKnobValues(all.B);
-      const knobsC = settingsToKnobValues(all.C);
-      setAllKnobs({ A: knobsA, B: knobsB, C: knobsC });
-      setKnobValues(selectedPreset === 'A' ? knobsA : selectedPreset === 'B' ? knobsB : knobsC);
-      setStatusMsg('All presets refreshed from pedal', 'success');
+      if (mode === 'preset') {
+        await handleSelectPreset(section);
+      } else {
+        const field = section === 'A' ? 'irSection' : section === 'B' ? 'delaySection' : 'toneSection';
+        const newVal = !knobValues[field];
+        setKnobValues(prev => ({ ...prev, [field]: newVal }));
+        await midiRef.current.toggleSection(section, newVal);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatusMsg(`Refresh failed: ${message}`, 'error');
-    } finally {
-      setLoading(false);
+      log(`Footswitch ${section} failed: ${message}`);
     }
-  }, [selectedPreset, setStatusMsg]);
+  }, [mode, knobValues, handleSelectPreset, log]);
 
   const downloadBlob = useCallback((data: ArrayBuffer, filename: string) => {
     const blob = new Blob([data]);
@@ -404,7 +403,7 @@ export default function App() {
     // Pad 512-sample IR to 1024 samples (4096 bytes) for ROM storage
     const romBytes = padIrToRomBytes(irPreprocessed);
     const totalChunks = Math.ceil(romBytes.length / 128);
-    setIrProgress({ current: 0, total: totalChunks });
+    setIrProgress({ current: 0, total: 100 });
 
     try {
       // 1. Save to localStorage first (for playback without pedal reads)
@@ -416,6 +415,7 @@ export default function App() {
       await midiRef.current.eraseIRRomSector(slot);
       await new Promise(r => setTimeout(r, 500));
       log(`ROM slot ${slot} erased`);
+      setIrProgress({ current: 10, total: 100 });
 
       // 3. Write 4096 bytes to ROM (32 chunks of 128)
       setIrStatus('writing');
@@ -423,7 +423,7 @@ export default function App() {
         const offset = i * 128;
         const end = Math.min(offset + 128, romBytes.length);
         const chunk = romBytes.slice(offset, end);
-        setIrProgress({ current: i + 1, total: totalChunks });
+        setIrProgress({ current: 10 + Math.round((i + 1) / totalChunks * 80), total: 100 });
         setStatusMsg(`Writing IR slot ${slot} (${i + 1}/${totalChunks})...`);
         await midiRef.current.sendAndWait({
           type: 'WriteMemory', cmd: 0,
@@ -436,8 +436,10 @@ export default function App() {
 
       // 4. Verify (read first 8 bytes)
       setIrStatus('verifying');
+      setIrProgress({ current: 90, total: 100 });
       setStatusMsg('Verifying...');
       await new Promise(r => setTimeout(r, 300));
+      setIrProgress({ current: 100, total: 100 });
       const verifyData = await midiRef.current.readIRFromRom(slot, 8);
       const verifyF32 = new Float32Array(verifyData.buffer);
       const expectedFirst = irPreprocessed[0];
@@ -675,7 +677,7 @@ export default function App() {
                     disabled={!irPreprocessed || !midiRef.current || irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'}
                   >
                     {irStatus === 'erasing' ? 'Erasing...' :
-                     irStatus === 'writing' ? `Writing ${irProgress.current}/${irProgress.total}...` :
+                     irStatus === 'writing' ? `${Math.round(irProgress.current / irProgress.total * 100)}%` :
                      irStatus === 'verifying' ? 'Verifying...' :
                      irStatus === 'done' ? 'Uploaded!' :
                      'Upload to Pedal'}
@@ -707,7 +709,46 @@ export default function App() {
             <span>{status || 'Ready'}</span>
           </div>
 
-          <details className="debug-section">
+          <button className="btn btn-xs" onClick={() => setShowHelp(true)} title="Help & About">?</button>
+          {showHelp && (
+            <div className="help-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }}>
+              <div className="help-modal">
+                <button className="btn btn-xs btn-danger" onClick={() => setShowHelp(false)} title="Close">?</button>
+                <h2>Cube Baby Presets Live</h2>
+                <p className="help-desc">Cross-platform editor for the SINCO / Cuvave Cube Baby multi-FX guitar pedal.</p>
+                
+                <h3>Features</h3>
+                <ul className="help-features">
+                  <li>Edit all 10 preset parameters (Type, Gain, Tone, Reverb, Feedback, Volume, Time, Mix, Modulation, Cabinet)</li>
+                  <li>Read/write presets A/B/C with live sync</li>
+                  <li>Toggle IR, Delay, and Tone sections independently</li>
+                  <li>Upload custom impulse responses (IR) to RAM or ROM</li>
+                  <li>Export/import presets as JSON files</li>
+                  <li>Backup/restore factory cabinet IRs</li>
+                </ul>
+                
+                <h3>IR Upload</h3>
+                <p>Upload custom WAV files as impulse responses:</p>
+                <ul className="help-features">
+                  <li>Auto-resampled to 48kHz</li>
+                  <li>Normalized to peak 1.0</li>
+                  <li>Up to 512 samples (RAM) or 1024 samples (ROM)</li>
+                  <li>9 persistent IR slots with header flags</li>
+                </ul>
+                
+                <h3>Protocol</h3>
+                <p>Uses the reverse-engineered SysEx protocol from <a href="https://github.com/pferreir/cuvave-midi" target="_blank" rel="noopener noreferrer">pferreir/cuvave-midi</a>.</p>
+                <p>See <code>knowledge_base.md</code> for detailed protocol documentation.</p>
+                
+                <h3>Hardware</h3>
+                <p>Requires a USB MIDI interface connected to the Cube Baby pedal. On Android, you'll need a USB OTG cable and USB-MIDI adapter.</p>
+                
+                <h3>Version</h3>
+                <p>v0.1.0 ? MIT License</p>
+              </div>
+            </div>
+          )}
+                    <details className="debug-section">
             <summary className="debug-summary" onClick={(e) => { e.preventDefault(); setShowDebug(!showDebug); }}>
               <span className="debug-toggle">{showDebug ? '▼' : '▶'}</span>
               Debug Log {debugLog.length > 0 && `(${debugLog.length})`}
