@@ -2,19 +2,24 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CubeBabyMidi } from '../midi/cubeBabyMidi';
 import type { PresetName } from '../protocol/types';
-import { PRESETS, IR_SLOT_COUNT, IR_ROM_SLOT_SIZE } from '../protocol/types';
+import { IR_SLOT_COUNT, IR_ROM_SLOT_SIZE } from '../protocol/types';
 import { Pedal } from './components/Pedal';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { HelpModal } from './components/HelpModal';
 import { DebugPanel } from './components/DebugPanel';
 import { StatusBar } from './components/StatusBar';
+import { AppHeader } from './components/AppHeader';
+import { PresetBar } from './components/PresetBar';
+import { Toolbar } from './components/Toolbar';
+import { IRSection } from './components/IRSection';
+import { SkeletonLoader } from './components/SkeletonLoader';
 import { settingsToKnobValues, knobValuesToSettings } from '../protocol';
 import type { KnobValues } from '../protocol';
 import { processWavFile, irToBytes, padIrToRomBytes, irSummary, float32ToWav } from './irProcessor';
 import { changeLanguage, getDirection } from '../i18n/i18n';
 import { listMidiDevices } from '../midi/midiService';
 import type { MidiDeviceInfo } from '../midi/midiService';
-import { cubeBabyModel, PRESET_COLORS, EMPTY_KNOBS, FACTORY_DEFAULT_KNOBS, MAX_UNDO_DEPTH } from './constants';
+import { cubeBabyModel, EMPTY_KNOBS, FACTORY_DEFAULT_KNOBS, MAX_UNDO_DEPTH } from './constants';
 import type { PresetFile, BankFile } from './helpers';
 import { downloadJson, loadFile } from './helpers';
 
@@ -634,83 +639,12 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="app-header-left">
-          <div className="app-logo">
-            <span className="app-logo-icon">◆</span>
-            <h1>{t('app.title')}</h1>
-            <span className={`app-badge ${mode}`}>{mode.toUpperCase()}</span>
-          </div>
-          <div className="app-header-sub">{t('app.editor')}</div>
-        </div>
-        <div className="app-header-right">
-          <div className="status-indicator-mini">
-            <span className={`status-dot-mini ${connected ? 'on' : 'off'}`} />
-            <span className="status-text-mini">{connected ? t('app.connected') : t('app.offline')}</span>
-          </div>
-          {!connected ? (
-            <button className="btn-connect" onClick={handleConnect} disabled={connecting}>
-              {connecting ? t('app.connecting') : t('app.connect')}
-            </button>
-          ) : (
-            <button className="btn-disconnect" onClick={handleDisconnect}>
-              {t('app.disconnect')}
-            </button>
-          )}
-        </div>
-      </header>
+      <AppHeader connected={connected} connecting={connecting} mode={mode} onConnect={handleConnect} onDisconnect={handleDisconnect} />
 
-      {connected && connecting && (
-        <div className="skeleton-container">
-          <div className="skeleton-preset-bar">
-            <div className="skeleton-circle" />
-            <div className="skeleton-circle" />
-            <div className="skeleton-circle" />
-            <div className="skeleton-mode" />
-          </div>
-          <div className="skeleton-card" />
-          <div className="skeleton-card" />
-          <div className="skeleton-card" />
-          <div className="skeleton-card" />
-          <div className="skeleton-toolbar">
-            <div className="skeleton-btn" />
-            <div className="skeleton-btn" />
-            <div className="skeleton-btn" />
-            <div className="skeleton-btn" />
-            <div className="skeleton-btn" />
-          </div>
-        </div>
-      )}
+      {connected && connecting && <SkeletonLoader />}
       {connected && !connecting && (
-        <><div className="preset-bar">
-            <div className="preset-selector">
-              {PRESETS.map(p => (
-                <button
-                  key={p}
-                  className={`preset-btn ${selectedPreset === p ? 'active' : ''}`}
-                  style={{ '--preset-color': PRESET_COLORS[p] } as React.CSSProperties}
-                  onClick={() => handleSelectPreset(p)}
-                  disabled={loading}
-                >
-                  <span className="preset-btn-letter">{p}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mode-toggle">
-              <button
-                className={`mode-btn ${mode === 'preset' ? 'active' : ''}`}
-                onClick={() => setMode('preset')}
-              >
-                {t('preset.modePreset')}
-              </button>
-              <button
-                className={`mode-btn ${mode === 'live' ? 'active' : ''}`}
-                onClick={() => setMode('live')}
-              >
-                {t('preset.modeLive')}
-              </button>
-            </div>
-          </div>
+        <>
+          <PresetBar selectedPreset={selectedPreset} mode={mode} loading={loading} onSelectPreset={handleSelectPreset} onModeChange={setMode} />
 
           <div className="pedal-container">
             <Pedal
@@ -741,104 +675,50 @@ export default function App() {
             />
           </div>
 
-          <div className="toolbar">
-            <button
-              className={`btn btn-primary btn-xs ${isDirty ? 'btn-dirty' : ''}`}
-              onClick={handleSave}
-              disabled={saving || loading}
-              title={`${t('preset.save')} (Ctrl+S)`}
-            >
-              {saving ? t('preset.saving') : isDirty ? `${t('preset.save')}*` : t('preset.save')}
-            </button>
-            {isDirty && <button className="btn btn-xs btn-revert" onClick={handleRevert} title={t('preset.revert')}>↩</button>}
-            <button className="btn btn-xs btn-undo" onClick={handleUndo} disabled={(undoStack[selectedPreset]?.length || 0) === 0} title={t('preset.undo') + ' (Ctrl+Z)'}>↩</button>
-            <button className="btn btn-xs btn-redo" onClick={handleRedo} disabled={(redoStack[selectedPreset]?.length || 0) === 0} title={t('preset.redo') + ' (Ctrl+Shift+Z)'}>↪</button>
-            <button className="btn btn-secondary btn-xs" onClick={handleExportPreset} title={t('preset.export') + ' (Ctrl+E)'}>
-              {t('preset.export')}
-            </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleExportBank} title={t('preset.bank')}>
-              {t('preset.bank')}
-            </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleImport} disabled={importing} title={t('preset.import') + ' (Ctrl+I)'}>
-              {importing ? t('preset.importing') : t('preset.import')}
-            </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleRefreshAll} title={t('preset.refresh')}>
-              {t('preset.refresh')}
-            </button>
-            <button className="btn btn-xs btn-danger" onClick={handleFactoryReset} title={t('preset.factoryReset')}>↺</button>
-          </div>
+          <Toolbar
+            isDirty={isDirty}
+            saving={saving}
+            loading={loading}
+            importing={importing}
+            undoCount={undoStack[selectedPreset]?.length || 0}
+            redoCount={redoStack[selectedPreset]?.length || 0}
+            selectedPreset={selectedPreset}
+            handlers={{
+              onSave: handleSave,
+              onRevert: handleRevert,
+              onUndo: handleUndo,
+              onRedo: handleRedo,
+              onExportPreset: handleExportPreset,
+              onExportBank: handleExportBank,
+              onImport: handleImport,
+              onRefreshAll: handleRefreshAll,
+              onFactoryReset: handleFactoryReset,
+            }}
+          />
 
-          <details className="ir-lab" open={irLabOpen} onToggle={e => { const v = (e.target as HTMLDetailsElement).open; setIrLabOpen(v); localStorage.setItem('irLabOpen', v ? 'open' : 'closed'); }}>
-            <summary className="ir-lab-summary">
-              <span className="ir-lab-toggle">▼</span>
-              {t('ir.title')}
-            </summary>
-            <div className="ir-lab-content">
-              <div className="ir-upload-section">
-                <div className="ir-upload-row">
-                  <button className="btn btn-xs btn-primary" onClick={handleIRSelectFile} disabled={irStatus === 'processing'}>
-                    {irFile ? t('ir.changeFile') : t('ir.selectFile')}
-                  </button>
-                  <span className="ir-file-name">{irFile ? irFile.name : t('ir.noFile')}</span>
-                </div>
-                {irPreprocessed && (
-                  <div className="ir-upload-preview">
-                    <span className="ir-preview-text">{t('ir.processed', { samples: 512, peak: Math.max(...Array.from(irPreprocessed).map(Math.abs)).toFixed(3) })}</span>
-                  </div>
-                )}
-                <div className="ir-upload-row">
-                  <label className="ir-label">{t('ir.slot')}</label>
-                  <select className="ir-select" value={irSlot} onChange={e => setIrSlot(Number(e.target.value))} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'}>
-                    {Array.from({ length: IR_SLOT_COUNT }, (_, i) => (
-                      <option key={i} value={i}>{t('ir.slotOption', { number: i + 1 })}{irNames[i] ? ` — ${irNames[i]}` : ''}</option>
-                    ))}
-                  </select>
-                  <button className="btn btn-xs" onClick={handleIRDownloadBackup} disabled={!midiRef.current || irStatus === 'processing' || irStatus === 'writing'} title={t('ir.backup')}>
-                    {t('ir.backup')}
-                  </button>
-                </div>
-                <div className="ir-upload-row">
-                  <label className="ir-label">{t('ir.dist')}</label>
-                  <input className="ir-range" type="range" min="0" max="1" step="0.01" value={irDistance} onChange={e => setIrDistance(parseFloat(e.target.value))} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'} />
-                  <span className="ir-range-value">{irDistance.toFixed(2)}</span>
-                </div>
-                <div className="ir-upload-row">
-                  <label className="ir-label">{t('ir.name')}</label>
-                  <input className="ir-input" type="text" value={irName} onChange={e => setIrName(e.target.value)} placeholder={t('ir.namePlaceholder', { number: irSlot + 1 })} maxLength={32} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'} />
-                </div>
-                <div className="ir-upload-row">
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={handleIRUpload}
-                    disabled={!irPreprocessed || !midiRef.current || irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'}
-                  >
-                    {irStatus === 'erasing' ? t('ir.erasing') :
-                     irStatus === 'writing' ? `${Math.round(irProgress.current / irProgress.total * 100)}%` :
-                     irStatus === 'verifying' ? t('ir.verifying') :
-                     irStatus === 'done' ? t('ir.done') :
-                     t('ir.upload')}
-                  </button>
-                  {(irStatus === 'writing' || irStatus === 'erasing' || irStatus === 'verifying') && (
-                    <div className="ir-progress-bar">
-                      <div className="ir-progress-fill" style={{ width: `${(irProgress.current / irProgress.total) * 100}%` }} />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {Object.keys(irNames).length > 0 && (
-                <div className="ir-names-list">
-                  {Array.from({ length: IR_SLOT_COUNT }, (_, i) => irNames[i] ? (
-                    <div key={i} className="ir-name-entry" onClick={() => handleIRLoadSlot(i)} title={t('ir.clickToLoad')}>
-                      <span className="ir-name-slot">{t('ir.slotLabel', { number: i + 1 })}</span>
-                      <span className="ir-name-label">{irNames[i]}</span>
-                      <button className="btn btn-xs btn-danger" onClick={e => { e.stopPropagation(); const u = { ...irNames }; delete u[i]; saveIrNames(u); }} title={t('ir.removeName')}>✕</button>
-                    </div>
-                  ) : null)}
-                </div>
-              )}
-            </div>
-          </details>
+          <IRSection
+            irSlot={irSlot}
+            irName={irName}
+            irStatus={irStatus}
+            irProgress={irProgress}
+            irDistance={irDistance}
+            irFile={irFile}
+            irPreprocessed={irPreprocessed}
+            irNames={irNames}
+            connected={connected}
+            open={irLabOpen}
+            onToggle={v => { setIrLabOpen(v); localStorage.setItem('irLabOpen', v ? 'open' : 'closed'); }}
+            onSlotChange={setIrSlot}
+            onNameChange={setIrName}
+            onDistanceChange={setIrDistance}
+            handlers={{
+              onSelectFile: handleIRSelectFile,
+              onUpload: handleIRUpload,
+              onDownloadBackup: handleIRDownloadBackup,
+              onLoadSlot: handleIRLoadSlot,
+              onDeleteName: (slot) => { const u = { ...irNames }; delete u[slot]; saveIrNames(u); },
+            }}
+          />
 
           <StatusBar status={status} statusType={statusType} />
 

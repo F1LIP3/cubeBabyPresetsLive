@@ -1,0 +1,48 @@
+import { useTranslation } from 'react-i18next';
+import type { PresetName } from '../../protocol/types';
+import { PRESETS } from '../../protocol/types';
+import { PRESET_COLORS } from '../constants';
+
+interface PresetBarProps {
+  selectedPreset: PresetName;
+  mode: 'live' | 'preset';
+  loading: boolean;
+  onSelectPreset: (preset: PresetName) => void;
+  onModeChange: (mode: 'live' | 'preset') => void;
+}
+
+export function PresetBar({ selectedPreset, mode, loading, onSelectPreset, onModeChange }: PresetBarProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="preset-bar">
+      <div className="preset-selector">
+        {PRESETS.map(p => (
+          <button
+            key={p}
+            className={`preset-btn ${selectedPreset === p ? 'active' : ''}`}
+            style={{ '--preset-color': PRESET_COLORS[p] } as React.CSSProperties}
+            onClick={() => onSelectPreset(p)}
+            disabled={loading}
+          >
+            <span className="preset-btn-letter">{p}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mode-toggle">
+        <button
+          className={`mode-btn ${mode === 'preset' ? 'active' : ''}`}
+          onClick={() => onModeChange('preset')}
+        >
+          {t('preset.modePreset')}
+        </button>
+        <button
+          className={`mode-btn ${mode === 'live' ? 'active' : ''}`}
+          onClick={() => onModeChange('live')}
+        >
+          {t('preset.modeLive')}
+        </button>
+      </div>
+    </div>
+  );
+}
