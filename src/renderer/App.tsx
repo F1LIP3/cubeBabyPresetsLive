@@ -220,34 +220,6 @@ export default function App() {
     setStatusMsg(t('status.disconnected'));
   }, [setStatusMsg, t]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const ctrlOrCmd = e.ctrlKey || e.metaKey;
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
-        setShowHelp(prev => !prev);
-        return;
-      }
-      if (e.key === 'Escape') {
-        setShowHelp(false);
-        return;
-      }
-      if (connected && !connecting) {
-        if (e.key === '1') { handleSelectPreset('A'); return; }
-        if (e.key === '2') { handleSelectPreset('B'); return; }
-        if (e.key === '3') { handleSelectPreset('C'); return; }
-        if (ctrlOrCmd && e.key === 's') { e.preventDefault(); handleSave(); return; }
-        if (ctrlOrCmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
-        if (ctrlOrCmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); handleRedo(); return; }
-        if (ctrlOrCmd && e.key === 'Z') { e.preventDefault(); handleRedo(); return; }
-        if (ctrlOrCmd && e.key === 'e') { e.preventDefault(); handleExportPreset(); return; }
-        if (ctrlOrCmd && e.key === 'i') { e.preventDefault(); handleImport(); return; }
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [connected, connecting, handleSelectPreset, handleSave, handleUndo, handleRedo, handleExportPreset, handleImport]);
-
   // Also ensure the disconnect handler gets re-wired when t changes
   useEffect(() => {
     if (midiRef.current) {
@@ -358,6 +330,14 @@ export default function App() {
     }
   }, [setStatusMsg, t]);
 
+  const pushUndo = useCallback((preset: PresetName) => {
+    setUndoStack(prev => {
+      const stack = prev[preset] || [];
+      return { ...prev, [preset]: [...stack.slice(-(MAX_UNDO_DEPTH - 1)), knobValues] };
+    });
+    setRedoStack(prev => ({ ...prev, [preset]: [] }));
+  }, [knobValues]);
+
   const handleRevert = useCallback(() => {
     const saved = allKnobs[selectedPreset];
     if (saved) {
@@ -461,14 +441,6 @@ export default function App() {
       return new Float32Array(bytes.buffer);
     } catch { return null; }
   }, []);
-
-  const pushUndo = useCallback((preset: PresetName) => {
-    setUndoStack(prev => {
-      const stack = prev[preset] || [];
-      return { ...prev, [preset]: [...stack.slice(-(MAX_UNDO_DEPTH - 1)), knobValues] };
-    });
-    setRedoStack(prev => ({ ...prev, [preset]: [] }));
-  }, [knobValues]);
 
   const handleKnobChangeEnd = useCallback((name: string, value: number) => {
     if (!midiRef.current) return;
@@ -704,6 +676,34 @@ export default function App() {
       setStatusMsg(`Failed to load slot ${slot}: ${e.message}`, 'error');
     }
   }, [midiRef, irNames, irDistance, saveIrData, loadIrData, setStatusMsg, setActiveCustomSlot, setKnobValues]);
+
+  // Keyboard shortcuts (placed after all handlers to avoid TDZ)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const ctrlOrCmd = e.ctrlKey || e.metaKey;
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        setShowHelp(prev => !prev);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowHelp(false);
+        return;
+      }
+      if (connected && !connecting) {
+        if (e.key === '1') { handleSelectPreset('A'); return; }
+        if (e.key === '2') { handleSelectPreset('B'); return; }
+        if (e.key === '3') { handleSelectPreset('C'); return; }
+        if (ctrlOrCmd && e.key === 's') { e.preventDefault(); handleSave(); return; }
+        if (ctrlOrCmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+        if (ctrlOrCmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); handleRedo(); return; }
+        if (ctrlOrCmd && e.key === 'Z') { e.preventDefault(); handleRedo(); return; }
+        if (ctrlOrCmd && e.key === 'e') { e.preventDefault(); handleExportPreset(); return; }
+        if (ctrlOrCmd && e.key === 'i') { e.preventDefault(); handleImport(); return; }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [connected, connecting, handleSelectPreset, handleSave, handleUndo, handleRedo, handleExportPreset, handleImport]);
 
   useEffect(() => {
     return () => {
