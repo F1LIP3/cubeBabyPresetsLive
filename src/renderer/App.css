@@ -309,6 +309,26 @@ body {
   border-color: var(--accent);
 }
 
+.welcome-midi-devices {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.welcome-select {
+  max-width: 240px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.welcome-no-devices {
+  font-size: 11px;
+  color: var(--error);
+  opacity: 0.8;
+}
+
 /* ── Preset Bar ── */
 .preset-bar {
   display: flex;
@@ -714,6 +734,48 @@ body {
   font-size: 11px;
 }
 
+.btn-dirty {
+  box-shadow: 0 0 8px rgba(124, 92, 252, 0.4);
+  animation: dirtyPulse 2s ease-in-out infinite;
+}
+
+@keyframes dirtyPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(124, 92, 252, 0.3); }
+  50% { box-shadow: 0 0 14px rgba(124, 92, 252, 0.6); }
+}
+
+.btn-undo, .btn-redo {
+  flex: 0 0 auto;
+  width: 36px;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 14px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.btn-undo:hover:not(:disabled), .btn-redo:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.btn-revert {
+  flex: 0 0 auto;
+  width: 36px;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 14px;
+  background: rgba(231, 76, 60, 0.1);
+  color: var(--error);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  animation: dirtyPulse 2s ease-in-out infinite;
+}
+
+.btn-revert:hover {
+  border-color: var(--error);
+  background: rgba(231, 76, 60, 0.2);
+}
+
 /* ── Status Message ── */
 .status-msg {
   display: flex;
@@ -818,30 +880,54 @@ body {
 .ir-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   min-width: 40px;
 }
 
 .ir-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
   flex: 1;
   max-width: 200px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23686880'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.ir-select:hover {
+  border-color: var(--text-muted);
+}
+
+.ir-select:focus {
+  border-color: var(--accent);
 }
 
 .ir-input {
   font-size: 11px;
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
+  padding: 4px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   flex: 1;
   max-width: 250px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.ir-input:focus {
+  border-color: var(--accent);
 }
 
 .ir-input::placeholder {
@@ -889,7 +975,7 @@ body {
 .ir-range-value {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   min-width: 28px;
   text-align: right;
 }
@@ -905,7 +991,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--bg);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2px 6px;
@@ -924,7 +1010,7 @@ body {
 }
 
 .ir-name-label {
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .ir-name-entry .btn {
@@ -993,6 +1079,62 @@ body {
   word-break: break-all;
 }
 
+/* ── Skeleton Loading ── */
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.skeleton-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.skeleton-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+}
+
+.skeleton-mode {
+  width: 80px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  margin-left: auto;
+}
+
+.skeleton-card {
+  height: 120px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.skeleton-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.skeleton-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 4px;
@@ -1016,33 +1158,57 @@ body {
 @media (max-width: 600px) {
   .app {
     padding: 10px;
+    max-width: 100%;
   }
 
   .app-logo h1 {
     font-size: 15px;
   }
 
+  .app-logo-icon {
+    font-size: 16px;
+  }
+
+  .app-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .app-header-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
   .pedal-select {
-    font-size: 10px;
+    font-size: 11px;
+    padding: 8px 24px 8px 8px;
+  }
+
+  .pedal-card-body {
+    padding: 8px 10px 10px;
   }
 
   .pedal-footswitch {
-    width: 54px;
-    height: 54px;
+    width: 60px;
+    height: 60px;
+  }
+
+  .pedal-footswitch-label {
+    font-size: 9px;
   }
 
   .slider-label {
-    min-width: 30px;
-    font-size: 8px;
+    min-width: 36px;
+    font-size: 9px;
   }
 
   .slider-track {
-    height: 32px;
+    height: 36px;
   }
 
   .slider-thumb {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
   }
 
   .preset-btn {
@@ -1050,9 +1216,25 @@ body {
     height: 44px;
   }
 
+  .preset-btn-letter {
+    font-size: 16px;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
   .toolbar .btn {
-    padding: 12px 6px;
+    flex: 1;
+    min-width: 50px;
+    padding: 12px 4px;
     font-size: 10px;
+  }
+
+  .btn-undo, .btn-redo, .btn-revert {
+    width: 40px;
+    min-width: 40px;
+    font-size: 16px;
   }
 
   .app-badge {
@@ -1063,6 +1245,39 @@ body {
   .mode-btn {
     padding: 8px 10px;
     font-size: 10px;
+  }
+
+  .pedal-row {
+    flex-wrap: wrap;
+  }
+
+  .pedal-label {
+    min-width: 100%;
+    font-size: 9px;
+    margin-bottom: 2px;
+  }
+
+  .welcome {
+    padding: 24px 16px;
+  }
+
+  .welcome h2 {
+    font-size: 18px;
+  }
+
+  .ir-upload-row {
+    flex-wrap: wrap;
+  }
+
+  .ir-select, .ir-input {
+    max-width: 100%;
+    flex-basis: 100%;
+  }
+
+  .help-modal {
+    padding: 16px;
+    margin: 10px;
+    max-height: 90vh;
   }
 }
 
@@ -1159,4 +1374,76 @@ body {
 
 .help-modal a:hover {
   text-decoration: underline;
+}
+
+/* ── Error Boundary ── */
+.error-boundary {
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-boundary-content {
+  max-width: 500px;
+}
+
+.error-boundary-heading {
+  color: var(--error);
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+
+.error-boundary-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.error-boundary-details {
+  text-align: left;
+  margin-top: 20px;
+  background: var(--bg-card);
+  padding: 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.error-boundary-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.error-boundary-stack {
+  white-space: pre-wrap;
+  font-size: 11px;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.error-boundary-reload {
+  margin-top: 20px;
+  padding: 10px 24px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all var(--transition);
+}
+
+.error-boundary-reload:hover {
+  background: #8c6cff;
+  transform: translateY(-1px);
 }

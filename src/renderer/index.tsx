@@ -19,40 +19,18 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          padding: '20px',
-          fontFamily: 'sans-serif',
-          textAlign: 'center',
-          color: '#333',
-          background: '#f5f5f5',
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <div>
-            <h1 style={{ color: '#e74c3c' }}>Something went wrong</h1>
-            <p>The app encountered an error and couldn't continue.</p>
-            <details style={{ textAlign: 'left', marginTop: '20px', background: '#fff', padding: '15px', borderRadius: '8px' }}>
+        <div className="error-boundary">
+          <div className="error-boundary-content">
+            <h1 className="error-boundary-heading">Something went wrong</h1>
+            <p className="error-boundary-text">The app encountered an error and couldn't continue.</p>
+            <details className="error-boundary-details">
               <summary>Debug info</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: '12px', marginTop: '10px' }}>
+              <pre className="error-boundary-stack">
                 {this.state.error?.message}
 {this.state.error?.stack}
               </pre>
             </details>
-            <button
-              onClick={() => window.location.reload()}
-              style={{
-                marginTop: '20px',
-                padding: '10px 20px',
-                background: '#3498db',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-            >
+            <button className="error-boundary-reload" onClick={() => window.location.reload()}>
               Reload App
             </button>
           </div>

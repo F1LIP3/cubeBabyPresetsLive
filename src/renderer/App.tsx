@@ -9,6 +9,8 @@ import { settingsToKnobValues, knobValuesToSettings, KnobValues } from '../proto
 import { processWavFile, irToBytes, padIrToRomBytes, irSummary, float32ToWav } from './irProcessor';
 import { IR_ROM_SLOT_SIZE } from '../protocol/types';
 import { changeLanguage, getDirection } from '../i18n/i18n';
+import { listMidiDevices } from '../midi/midiService';
+import type { MidiDeviceInfo } from '../midi/midiService';
 
 interface Model {
   id: string;
@@ -44,6 +46,14 @@ const EMPTY_KNOBS: KnobValues = {
   fb: 0, mix: 0, reverb: 0, ir_cab: 0, volume: 0,
   irSection: true, delaySection: true, toneSection: true,
 };
+
+const FACTORY_DEFAULT_KNOBS: KnobValues = {
+  type: 0, gain: 4, tone: 8, mod: 7, time: 16,
+  fb: 0, mix: 59, reverb: 8, ir_cab: 0, volume: 100,
+  irSection: true, delaySection: true, toneSection: true,
+};
+
+const MAX_UNDO_DEPTH = 30;
 
 interface PresetFile {
   format: 'cubebabypreset';
@@ -109,6 +119,10 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const midiRef = useRef<CubeBabyMidi | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [undoStack, setUndoStack] = useState<Record<PresetName, KnobValues[]>>({ A: [], B: [], C: [] });
+  const [redoStack, setRedoStack] = useState<Record<PresetName, KnobValues[]>>({ A: [], B: [], C: [] });
+  const [undoCount, setUndoCount] = useState(0);
+  const [redoCount, setRedoCount] = useState(0);
   const [irFile, setIrFile] = useState<File | null>(null);
   const [irSlot, setIrSlot] = useState(0);
   const [irName, setIrName] = useState('');
@@ -120,6 +134,23 @@ export default function App() {
   const [irPreprocessed, setIrPreprocessed] = useState<Float32Array | null>(null);
   const [irDistance, setIrDistance] = useState(0.7);
   const [activeCustomSlot, setActiveCustomSlot] = useState<number | null>(null);
+  const [irLabOpen, setIrLabOpen] = useState(() => localStorage.getItem('irLabOpen') !== 'closed');
+  const isDirty = useMemo(() => {
+    return JSON.stringify(knobValues) !== JSON.stringify(allKnobs[selectedPreset]);
+  }, [knobValues, allKnobs, selectedPreset]);
+
+  const [midiDevices, setMidiDevices] = useState<MidiDeviceInfo[]>([]);
+  const [selectedMidiDeviceId, setSelectedMidiDeviceId] = useState<string>('');
+
+  // Scan MIDI devices on mount
+  useEffect(() => {
+    listMidiDevices().then(devices => {
+      setMidiDevices(devices);
+      if (devices.length > 0 && !selectedMidiDeviceId) {
+        setSelectedMidiDeviceId(devices[0].id);
+      }
+    });
+  }, []);
 
   const setStatusMsg = useCallback((msg: string, type: 'info' | 'success' | 'error' = 'info') => {
     setStatus(msg);
@@ -138,7 +169,13 @@ export default function App() {
       baby.onUnsolicited = (msg) => {
         log(`Unsolicited: ${JSON.stringify(msg)}`);
       };
-      await baby.connect();
+      baby.onDisconnect = () => {
+        setConnected(false);
+        setKnobValues(EMPTY_KNOBS);
+        setStatusMsg(t('status.deviceDisconnected'), 'error');
+        log('MIDI device disconnected');
+      };
+      await baby.connect(selectedMidiDeviceId || undefined);
       midiRef.current = baby;
       // Set initial empty values
       setAllKnobs({ A: { ...EMPTY_KNOBS }, B: { ...EMPTY_KNOBS }, C: { ...EMPTY_KNOBS } });
@@ -170,7 +207,7 @@ export default function App() {
     } finally {
       setConnecting(false);
     }
-  }, [log, setStatusMsg]);
+  }, [log, setStatusMsg, t]);
 
   const handleDisconnect = useCallback(() => {
     if (midiRef.current) {
@@ -182,6 +219,46 @@ export default function App() {
     setAllKnobs({ A: EMPTY_KNOBS, B: EMPTY_KNOBS, C: EMPTY_KNOBS });
     setStatusMsg(t('status.disconnected'));
   }, [setStatusMsg, t]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const ctrlOrCmd = e.ctrlKey || e.metaKey;
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        setShowHelp(prev => !prev);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowHelp(false);
+        return;
+      }
+      if (connected && !connecting) {
+        if (e.key === '1') { handleSelectPreset('A'); return; }
+        if (e.key === '2') { handleSelectPreset('B'); return; }
+        if (e.key === '3') { handleSelectPreset('C'); return; }
+        if (ctrlOrCmd && e.key === 's') { e.preventDefault(); handleSave(); return; }
+        if (ctrlOrCmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+        if (ctrlOrCmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); handleRedo(); return; }
+        if (ctrlOrCmd && e.key === 'Z') { e.preventDefault(); handleRedo(); return; }
+        if (ctrlOrCmd && e.key === 'e') { e.preventDefault(); handleExportPreset(); return; }
+        if (ctrlOrCmd && e.key === 'i') { e.preventDefault(); handleImport(); return; }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [connected, connecting, handleSelectPreset, handleSave, handleUndo, handleRedo, handleExportPreset, handleImport]);
+
+  // Also ensure the disconnect handler gets re-wired when t changes
+  useEffect(() => {
+    if (midiRef.current) {
+      midiRef.current.onDisconnect = () => {
+        setConnected(false);
+        setKnobValues(EMPTY_KNOBS);
+        setStatusMsg(t('status.deviceDisconnected'), 'error');
+        log('MIDI device disconnected');
+      };
+    }
+  }, [t, setStatusMsg, log]);
 
   const handleSelectPreset = useCallback(async (preset: PresetName) => {
     console.log(`[UI] Preset button clicked: ${preset}`, midiRef.current ? "MIDI Connected" : "MIDI NULL");
@@ -279,7 +356,35 @@ export default function App() {
     } finally {
       setImporting(false);
     }
-  }, [setStatusMsg]);
+  }, [setStatusMsg, t]);
+
+  const handleRevert = useCallback(() => {
+    const saved = allKnobs[selectedPreset];
+    if (saved) {
+      pushUndo(selectedPreset);
+      setKnobValues(saved);
+      setStatusMsg(t('status.reverted', { name: selectedPreset }), 'info');
+      if (midiRef.current) {
+        const settings = knobValuesToSettings(saved);
+        midiRef.current.applySettingsToDsp(settings).catch(() => {});
+      }
+    }
+  }, [selectedPreset, allKnobs, pushUndo, setStatusMsg, t]);
+
+  const handleFactoryReset = useCallback(async () => {
+    pushUndo(selectedPreset);
+    setKnobValues(FACTORY_DEFAULT_KNOBS);
+    setAllKnobs(prev => ({ ...prev, [selectedPreset]: FACTORY_DEFAULT_KNOBS }));
+    if (midiRef.current) {
+      try {
+        const settings = knobValuesToSettings(FACTORY_DEFAULT_KNOBS);
+        await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
+        setStatusMsg(t('status.resetToDefaults', { name: selectedPreset }), 'success');
+      } catch {
+        setStatusMsg(t('status.saveFailed', { message: 'MIDI write failed' }), 'error');
+      }
+    }
+  }, [selectedPreset, pushUndo, setStatusMsg, t]);
 
   const handleRefreshAll = useCallback(async () => {
     if (!midiRef.current) return;
@@ -357,8 +462,17 @@ export default function App() {
     } catch { return null; }
   }, []);
 
+  const pushUndo = useCallback((preset: PresetName) => {
+    setUndoStack(prev => {
+      const stack = prev[preset] || [];
+      return { ...prev, [preset]: [...stack.slice(-(MAX_UNDO_DEPTH - 1)), knobValues] };
+    });
+    setRedoStack(prev => ({ ...prev, [preset]: [] }));
+  }, [knobValues]);
+
   const handleKnobChangeEnd = useCallback((name: string, value: number) => {
     if (!midiRef.current) return;
+    pushUndo(selectedPreset);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       if (!midiRef.current) return;
@@ -367,8 +481,52 @@ export default function App() {
       } catch {
         // Write may fail if pedal isn't in the right mode
       }
-    }, 200);
-  }, []);
+    }, 50);
+  }, [selectedPreset, pushUndo]);
+
+  const handleUndo = useCallback(() => {
+    const stack = undoStack[selectedPreset] || [];
+    if (stack.length === 0) return;
+    const prev = stack[stack.length - 1];
+    setUndoStack(prevStack => {
+      const s = prevStack[selectedPreset] || [];
+      return { ...prevStack, [selectedPreset]: s.slice(0, -1) };
+    });
+    setRedoStack(prevStack => ({
+      ...prevStack,
+      [selectedPreset]: [...(prevStack[selectedPreset] || []), knobValues],
+    }));
+    setKnobValues(prev);
+    if (midiRef.current) {
+      const paramNames = Object.keys(prev).filter(k => k !== 'irSection' && k !== 'delaySection' && k !== 'toneSection');
+      for (const param of paramNames) {
+        const val = prev[param as keyof KnobValues] as number;
+        midiRef.current.writeSingleKnob(param, val).catch(() => {});
+      }
+    }
+  }, [selectedPreset, undoStack, knobValues]);
+
+  const handleRedo = useCallback(() => {
+    const stack = redoStack[selectedPreset] || [];
+    if (stack.length === 0) return;
+    const next = stack[stack.length - 1];
+    setRedoStack(prevStack => {
+      const s = prevStack[selectedPreset] || [];
+      return { ...prevStack, [selectedPreset]: s.slice(0, -1) };
+    });
+    setUndoStack(prevStack => ({
+      ...prevStack,
+      [selectedPreset]: [...(prevStack[selectedPreset] || []), knobValues],
+    }));
+    setKnobValues(next);
+    if (midiRef.current) {
+      const paramNames = Object.keys(next).filter(k => k !== 'irSection' && k !== 'delaySection' && k !== 'toneSection');
+      for (const param of paramNames) {
+        const val = next[param as keyof KnobValues] as number;
+        midiRef.current.writeSingleKnob(param, val).catch(() => {});
+      }
+    }
+  }, [selectedPreset, redoStack, knobValues]);
 
   const handleFootswitch = useCallback(async (section: 'A' | 'B' | 'C') => {
     if (!midiRef.current) return;
@@ -581,9 +739,29 @@ export default function App() {
         </div>
       </header>
 
-      {connected && (
-        <>
-          <div className="preset-bar">
+      {connected && connecting && (
+        <div className="skeleton-container">
+          <div className="skeleton-preset-bar">
+            <div className="skeleton-circle" />
+            <div className="skeleton-circle" />
+            <div className="skeleton-circle" />
+            <div className="skeleton-mode" />
+          </div>
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-toolbar">
+            <div className="skeleton-btn" />
+            <div className="skeleton-btn" />
+            <div className="skeleton-btn" />
+            <div className="skeleton-btn" />
+            <div className="skeleton-btn" />
+          </div>
+        </div>
+      )}
+      {connected && !connecting && (
+        <><div className="preset-bar">
             <div className="preset-selector">
               {PRESETS.map(p => (
                 <button
@@ -643,24 +821,33 @@ export default function App() {
           </div>
 
           <div className="toolbar">
-            <button className="btn btn-primary btn-xs" onClick={handleSave} disabled={saving || loading} title={t('preset.save')}>
-              {saving ? t('preset.saving') : t('preset.save')}
+            <button
+              className={`btn btn-primary btn-xs ${isDirty ? 'btn-dirty' : ''}`}
+              onClick={handleSave}
+              disabled={saving || loading}
+              title={`${t('preset.save')} (Ctrl+S)`}
+            >
+              {saving ? t('preset.saving') : isDirty ? `${t('preset.save')}*` : t('preset.save')}
             </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleExportPreset} title={t('preset.export')}>
+            {isDirty && <button className="btn btn-xs btn-revert" onClick={handleRevert} title={t('preset.revert')}>↩</button>}
+            <button className="btn btn-xs btn-undo" onClick={handleUndo} disabled={(undoStack[selectedPreset]?.length || 0) === 0} title={t('preset.undo') + ' (Ctrl+Z)'}>↩</button>
+            <button className="btn btn-xs btn-redo" onClick={handleRedo} disabled={(redoStack[selectedPreset]?.length || 0) === 0} title={t('preset.redo') + ' (Ctrl+Shift+Z)'}>↪</button>
+            <button className="btn btn-secondary btn-xs" onClick={handleExportPreset} title={t('preset.export') + ' (Ctrl+E)'}>
               {t('preset.export')}
             </button>
             <button className="btn btn-secondary btn-xs" onClick={handleExportBank} title={t('preset.bank')}>
               {t('preset.bank')}
             </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleImport} disabled={importing} title={t('preset.import')}>
+            <button className="btn btn-secondary btn-xs" onClick={handleImport} disabled={importing} title={t('preset.import') + ' (Ctrl+I)'}>
               {importing ? t('preset.importing') : t('preset.import')}
             </button>
             <button className="btn btn-secondary btn-xs" onClick={handleRefreshAll} title={t('preset.refresh')}>
               {t('preset.refresh')}
             </button>
+            <button className="btn btn-xs btn-danger" onClick={handleFactoryReset} title={t('preset.factoryReset')}>↺</button>
           </div>
 
-          <details className="ir-lab" open>
+          <details className="ir-lab" open={irLabOpen} onToggle={e => { const v = (e.target as HTMLDetailsElement).open; setIrLabOpen(v); localStorage.setItem('irLabOpen', v ? 'open' : 'closed'); }}>
             <summary className="ir-lab-summary">
               <span className="ir-lab-toggle">▼</span>
               {t('ir.title')}
@@ -807,6 +994,19 @@ export default function App() {
             <li>{t('welcome.feature3')}</li>
             <li>{t('welcome.feature4')}</li>
           </ul>
+          {midiDevices.length > 1 && (
+            <div className="welcome-midi-devices">
+              <label>{t('welcome.midiDevice')}: </label>
+              <select className="pedal-select welcome-select" value={selectedMidiDeviceId} onChange={e => setSelectedMidiDeviceId(e.target.value)}>
+                {midiDevices.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {midiDevices.length === 0 && !connecting && (
+            <p className="welcome-no-devices">{t('welcome.noMidiDevices')}</p>
+          )}
           <div className="welcome-language">
             <label>{t('welcome.language')}: </label>
             <LanguageSelector />

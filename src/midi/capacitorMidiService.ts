@@ -7,7 +7,7 @@ export class CapacitorMidiService implements MidiService {
   private connectedDeviceId: number | null = null;
   private listener: any = null;
 
-  async connect(): Promise<void> {
+  async connect(deviceId?: string): Promise<void> {
     const perm = await Midi.requestPermission();
     if (!perm.granted) throw new Error('MIDI permission denied');
 
@@ -15,7 +15,9 @@ export class CapacitorMidiService implements MidiService {
     const devices = result.devices;
     if (devices.length === 0) throw new Error('No MIDI devices found');
 
-    const device = devices[0];
+    const device = deviceId
+      ? devices.find((d: any) => String(d.id) === deviceId) || devices[0]
+      : devices[0];
     this.connectedDeviceId = device.id;
 
     this.listener = await Midi.addListener('midiMessage', (data: { data: number[] }) => {
@@ -42,6 +44,10 @@ export class CapacitorMidiService implements MidiService {
 
   setMessageHandler(handler: ((data: Uint8Array) => void) | null): void {
     this.messageHandler = handler;
+  }
+
+  setDisconnectHandler(_handler: (() => void) | null): void {
+    // Capacitor MIDI doesn't provide disconnect detection
   }
 
   isNative(): boolean {

@@ -65,9 +65,15 @@ export class CubeBabyMidi {
   private seq = 0;
   private _activePreset: PresetName = 'A';
   onUnsolicited: ((msg: Message) => void) | null = null;
+  onDisconnect: (() => void) | null = null;
 
   constructor() {
     this.midiService = createMidiService();
+    this.midiService.setDisconnectHandler(() => {
+      this._connected = false;
+      this.clearAllPending();
+      this.onDisconnect?.();
+    });
   }
 
   get connected(): boolean {
@@ -78,12 +84,12 @@ export class CubeBabyMidi {
     return this._activePreset;
   }
 
-  async connect(): Promise<void> {
+  async connect(deviceId?: string): Promise<void> {
     this.midiService.setMessageHandler((data: Uint8Array) => {
       this.handleRawMidiData(data);
     });
 
-    await this.midiService.connect();
+    await this.midiService.connect(deviceId);
     this._connected = true;
 
     const initResponse = await this.sendAndWait(buildInitMessage());
