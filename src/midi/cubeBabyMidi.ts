@@ -1,4 +1,4 @@
-import type { Message, Settings, PresetName, ParameterName } from '../protocol/types';
+﻿import type { Message, Settings, PresetName, ParameterName } from '../protocol/types';
 import { messageFromSysex, messageToSysex } from '../protocol/parser';
 import {
   buildReadPresetMessage,
@@ -52,7 +52,7 @@ interface PendingEntry {
 }
 
 function createMidiService(): MidiService {
-  if (typeof Capacitor !== 'undefined' && Capacitor.isNative) {
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()) {
     return new CapacitorMidiService();
   }
   return new WebMidiService();
