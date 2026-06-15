@@ -272,6 +272,25 @@ export default function App() {
     }
   }, [setStatusMsg]);
 
+  const handleRefreshAll = useCallback(async () => {
+    if (!midiRef.current) return;
+    setLoading(true);
+    try {
+      const all = await midiRef.current.readAllPresets();
+      const knobsA = settingsToKnobValues(all.A);
+      const knobsB = settingsToKnobValues(all.B);
+      const knobsC = settingsToKnobValues(all.C);
+      setAllKnobs({ A: knobsA, B: knobsB, C: knobsC });
+      setKnobValues(selectedPreset === 'A' ? knobsA : selectedPreset === 'B' ? knobsB : knobsC);
+      setStatusMsg('All presets refreshed from pedal', 'success');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStatusMsg(`Refresh failed: ${message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedPreset, setStatusMsg]);
+
   const handleKnobChange = useCallback((_name: string, _value: number) => {
     setKnobValues(prev => ({ ...prev, [_name]: _value }));
   }, []);
