@@ -1,38 +1,56 @@
-import { en } from './en';
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
 
-export type MessageKeys = keyof typeof en;
-export type Messages = typeof en;
+import { en } from './locales/en';
+import { zh } from './locales/zh';
+import { hi } from './locales/hi';
+import { es } from './locales/es';
+import { fr } from './locales/fr';
+import { ar } from './locales/ar';
+import { pt } from './locales/pt';
+import { ru } from './locales/ru';
 
-// Current locale (default: 'en')
-let currentLocale: 'en' = 'en';
+const savedLang = typeof localStorage !== 'undefined' ? localStorage.getItem('lang') : null;
 
-// Get messages for current locale
-export function getMessages(): Messages {
-  return en;
+i18n.use(initReactI18next).init({
+  resources: {
+    en: { translation: en },
+    zh: { translation: zh },
+    hi: { translation: hi },
+    es: { translation: es },
+    fr: { translation: fr },
+    ar: { translation: ar },
+    pt: { translation: pt },
+    ru: { translation: ru },
+  },
+  lng: savedLang || 'en',
+  fallbackLng: 'en',
+  interpolation: {
+    escapeValue: false,
+  },
+});
+
+export const LANGUAGES = [
+  { code: 'en', label: 'English', native: 'English' },
+  { code: 'zh', label: 'Chinese', native: '中文' },
+  { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
+  { code: 'es', label: 'Spanish', native: 'Español' },
+  { code: 'fr', label: 'French', native: 'Français' },
+  { code: 'ar', label: 'Arabic', native: 'العربية' },
+  { code: 'pt', label: 'Portuguese', native: 'Português' },
+  { code: 'ru', label: 'Russian', native: 'Русский' },
+] as const;
+
+export type LangCode = (typeof LANGUAGES)[number]['code'];
+
+export function changeLanguage(lang: LangCode): void {
+  localStorage.setItem('lang', lang);
+  i18n.changeLanguage(lang);
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
 }
 
-// Translation function (placeholder for future multilingual support)
-export function t(key: MessageKeys): string {
-  const messages = getMessages();
-  return getNestedValue(messages, key) || key.toString();
+export function getDirection(lang: string): 'ltr' | 'rtl' {
+  return lang === 'ar' ? 'rtl' : 'ltr';
 }
 
-// Helper to get nested value from object
-function getNestedValue(obj: any, path: string): string | undefined {
-  const parts = path.split('.');
-  let current = obj;
-  for (const part of parts) {
-    if (current === undefined || current === null) {
-      return undefined;
-    }
-    current = current[part];
-  }
-  return typeof current === 'string' ? current : undefined;
-}
-
-// Initialize i18n (can be extended for locale switching)
-export function initI18n(locale: 'en' = 'en'): void {
-  currentLocale = locale;
-}
-
-export { currentLocale };
+export default i18n;

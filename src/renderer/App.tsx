@@ -1,11 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CubeBabyMidi } from '../midi/cubeBabyMidi';
 import type { PresetName } from '../protocol/types';
 import { PRESETS, IR_SLOT_COUNT } from '../protocol/types';
 import { Pedal } from './components/Pedal';
+import LanguageSelector from './components/LanguageSelector';
 import { settingsToKnobValues, knobValuesToSettings, KnobValues } from '../protocol';
 import { processWavFile, irToBytes, padIrToRomBytes, irSummary, float32ToWav } from './irProcessor';
 import { IR_ROM_SLOT_SIZE } from '../protocol/types';
+import { changeLanguage, getDirection } from '../i18n/i18n';
 
 interface Model {
   id: string;
@@ -85,6 +88,10 @@ function loadFile(): Promise<string> {
 }
 
 export default function App() {
+  const { t, i18n } = useTranslation();
+  useEffect(() => {
+    document.documentElement.dir = getDirection(i18n.language);
+  }, [i18n.language]);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<PresetName>('A');
@@ -125,7 +132,7 @@ export default function App() {
 
   const handleConnect = useCallback(async () => {
     setConnecting(true);
-    setStatusMsg('Connecting...');
+    setStatusMsg(t('app.connecting'));
     try {
       const baby = new CubeBabyMidi();
       baby.onUnsolicited = (msg) => {
@@ -156,10 +163,10 @@ export default function App() {
       
       setAllKnobs({ A: presets['A'], B: presets['B'], C: presets['C'] });
       setKnobValues(presets['A']);
-      setStatusMsg(`Connected! ${loadedCount}/3 presets loaded`, 'success');
+      setStatusMsg(t('status.connected', { loaded: loadedCount, total: 3 }), 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatusMsg(`Connection failed: ${message}`, 'error');
+      setStatusMsg(t('status.connectionFailed', { message }), 'error');
     } finally {
       setConnecting(false);
     }
@@ -173,8 +180,8 @@ export default function App() {
     setConnected(false);
     setKnobValues(EMPTY_KNOBS);
     setAllKnobs({ A: EMPTY_KNOBS, B: EMPTY_KNOBS, C: EMPTY_KNOBS });
-    setStatusMsg('Disconnected');
-  }, [setStatusMsg]);
+    setStatusMsg(t('status.disconnected'));
+  }, [setStatusMsg, t]);
 
   const handleSelectPreset = useCallback(async (preset: PresetName) => {
     console.log(`[UI] Preset button clicked: ${preset}`, midiRef.current ? "MIDI Connected" : "MIDI NULL");
@@ -190,21 +197,21 @@ export default function App() {
         log(`Switch preset ${preset} failed: ${message}`);
       }
     }
-    setStatusMsg(`Switched to preset ${preset}`, 'info');
-  }, [allKnobs, setStatusMsg, log]);
+    setStatusMsg(t('status.switched', { name: preset }), 'info');
+  }, [allKnobs, setStatusMsg, log, t]);
 
   const handleSave = useCallback(async () => {
     if (!midiRef.current) return;
     setSaving(true);
-    setStatusMsg(`Saving preset ${selectedPreset}...`);
+    setStatusMsg(t('status.loadingPreset', { name: selectedPreset }));
     try {
       const settings = knobValuesToSettings(knobValues);
       await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
       setAllKnobs(prev => ({ ...prev, [selectedPreset]: knobValues }));
-      setStatusMsg(`Preset ${selectedPreset} saved to pedal!`, 'success');
+      setStatusMsg(t('status.savedToPedal', { name: selectedPreset }), 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatusMsg(`Save failed: ${message}`, 'error');
+      setStatusMsg(t('status.saveFailed', { message }), 'error');
     } finally {
       setSaving(false);
     }
@@ -219,8 +226,8 @@ export default function App() {
       created: new Date().toISOString(),
     };
     downloadJson(file, `cube-baby-${selectedPreset}.cubebabypreset`);
-    setStatusMsg(`Exported preset ${selectedPreset}`, 'success');
-  }, [selectedPreset, knobValues, setStatusMsg]);
+    setStatusMsg(t('status.exportedPreset', { name: selectedPreset }), 'success');
+  }, [selectedPreset, knobValues, setStatusMsg, t]);
 
   const handleExportBank = useCallback(() => {
     const file: BankFile = {
@@ -230,8 +237,8 @@ export default function App() {
       created: new Date().toISOString(),
     };
     downloadJson(file, 'cube-baby-bank.cubebabybank');
-    setStatusMsg('Exported all presets as bank', 'success');
-  }, [allKnobs, selectedPreset, knobValues, setStatusMsg]);
+    setStatusMsg(t('status.exportedBank'), 'success');
+  }, [allKnobs, selectedPreset, knobValues, setStatusMsg, t]);
 
   const handleImport = useCallback(async () => {
     if (!midiRef.current) return;
@@ -250,7 +257,7 @@ export default function App() {
         setAllKnobs(prev => ({ ...prev, [target]: file.knobs }));
         // Apply to DSP
         await midiRef.current.applySettingsToDsp(settings);
-        setStatusMsg(`Imported ${target} and sent to pedal!`, 'success');
+        setStatusMsg(t('status.importedPreset', { name: target }), 'success');
       } else if (data.format === 'cubebabybank') {
         const file = data as BankFile;
         for (const [p, knobs] of Object.entries(file.presets)) {
@@ -262,13 +269,13 @@ export default function App() {
         const first = Object.keys(file.presets)[0] as PresetName;
         setKnobValues(file.presets[first]);
         setSelectedPreset(first);
-        setStatusMsg('Imported bank! All presets sent to pedal', 'success');
+        setStatusMsg(t('status.importedBank'), 'success');
       } else {
-        setStatusMsg('Unknown file format', 'error');
+        setStatusMsg(t('status.unknownFormat'), 'error');
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatusMsg(`Import failed: ${message}`, 'error');
+      setStatusMsg(t('status.importFailed', { message }), 'error');
     } finally {
       setImporting(false);
     }
@@ -284,10 +291,10 @@ export default function App() {
       const knobsC = settingsToKnobValues(all.C);
       setAllKnobs({ A: knobsA, B: knobsB, C: knobsC });
       setKnobValues(selectedPreset === 'A' ? knobsA : selectedPreset === 'B' ? knobsB : knobsC);
-      setStatusMsg('All presets refreshed from pedal', 'success');
+      setStatusMsg(t('status.presetsRefreshed'), 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatusMsg(`Refresh failed: ${message}`, 'error');
+      setStatusMsg(t('status.refreshFailed', { message }), 'error');
     } finally {
       setLoading(false);
     }
@@ -552,23 +559,23 @@ export default function App() {
         <div className="app-header-left">
           <div className="app-logo">
             <span className="app-logo-icon">◆</span>
-            <h1>Cube Baby</h1>
+            <h1>{t('app.title')}</h1>
             <span className={`app-badge ${mode}`}>{mode.toUpperCase()}</span>
           </div>
-          <div className="app-header-sub">Preset Editor</div>
+          <div className="app-header-sub">{t('app.editor')}</div>
         </div>
         <div className="app-header-right">
           <div className="status-indicator-mini">
             <span className={`status-dot-mini ${connected ? 'on' : 'off'}`} />
-            <span className="status-text-mini">{connected ? 'CONNECTED' : 'OFFLINE'}</span>
+            <span className="status-text-mini">{connected ? t('app.connected') : t('app.offline')}</span>
           </div>
           {!connected ? (
             <button className="btn-connect" onClick={handleConnect} disabled={connecting}>
-              {connecting ? 'Connecting...' : 'Connect'}
+              {connecting ? t('app.connecting') : t('app.connect')}
             </button>
           ) : (
             <button className="btn-disconnect" onClick={handleDisconnect}>
-              Disconnect
+              {t('app.disconnect')}
             </button>
           )}
         </div>
@@ -595,13 +602,13 @@ export default function App() {
                 className={`mode-btn ${mode === 'preset' ? 'active' : ''}`}
                 onClick={() => setMode('preset')}
               >
-                PRESET
+                {t('preset.modePreset')}
               </button>
               <button
                 className={`mode-btn ${mode === 'live' ? 'active' : ''}`}
                 onClick={() => setMode('live')}
               >
-                LIVE
+                {t('preset.modeLive')}
               </button>
             </div>
           </div>
@@ -636,60 +643,60 @@ export default function App() {
           </div>
 
           <div className="toolbar">
-            <button className="btn btn-primary btn-xs" onClick={handleSave} disabled={saving || loading} title="Save current settings to pedal slot">
-              {saving ? 'Saving...' : 'Save'}
+            <button className="btn btn-primary btn-xs" onClick={handleSave} disabled={saving || loading} title={t('preset.save')}>
+              {saving ? t('preset.saving') : t('preset.save')}
             </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleExportPreset} title="Export current preset as file">
-              Export
+            <button className="btn btn-secondary btn-xs" onClick={handleExportPreset} title={t('preset.export')}>
+              {t('preset.export')}
             </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleExportBank} title="Export all 3 presets as bank file">
-              Bank
+            <button className="btn btn-secondary btn-xs" onClick={handleExportBank} title={t('preset.bank')}>
+              {t('preset.bank')}
             </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleImport} disabled={importing} title="Import preset or bank from file">
-              {importing ? 'Importing...' : 'Import'}
+            <button className="btn btn-secondary btn-xs" onClick={handleImport} disabled={importing} title={t('preset.import')}>
+              {importing ? t('preset.importing') : t('preset.import')}
             </button>
-            <button className="btn btn-secondary btn-xs" onClick={handleRefreshAll} title="Re-read all presets from pedal">
-              Refresh
+            <button className="btn btn-secondary btn-xs" onClick={handleRefreshAll} title={t('preset.refresh')}>
+              {t('preset.refresh')}
             </button>
           </div>
 
           <details className="ir-lab" open>
             <summary className="ir-lab-summary">
               <span className="ir-lab-toggle">▼</span>
-              Custom IR Upload
+              {t('ir.title')}
             </summary>
             <div className="ir-lab-content">
               <div className="ir-upload-section">
                 <div className="ir-upload-row">
                   <button className="btn btn-xs btn-primary" onClick={handleIRSelectFile} disabled={irStatus === 'processing'}>
-                    {irFile ? 'Change File' : 'Select .wav File'}
+                    {irFile ? t('ir.changeFile') : t('ir.selectFile')}
                   </button>
-                  <span className="ir-file-name">{irFile ? irFile.name : 'No file selected'}</span>
+                  <span className="ir-file-name">{irFile ? irFile.name : t('ir.noFile')}</span>
                 </div>
                 {irPreprocessed && (
                   <div className="ir-upload-preview">
-                    <span className="ir-preview-text">Processed: 512 samples, peak {Math.max(...Array.from(irPreprocessed).map(Math.abs)).toFixed(3)}</span>
+                    <span className="ir-preview-text">{t('ir.processed', { samples: 512, peak: Math.max(...Array.from(irPreprocessed).map(Math.abs)).toFixed(3) })}</span>
                   </div>
                 )}
                 <div className="ir-upload-row">
-                  <label className="ir-label">Slot:</label>
+                  <label className="ir-label">{t('ir.slot')}</label>
                   <select className="ir-select" value={irSlot} onChange={e => setIrSlot(Number(e.target.value))} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'}>
                     {Array.from({ length: IR_SLOT_COUNT }, (_, i) => (
-                      <option key={i} value={i}>Slot {i + 1}{irNames[i] ? ` — ${irNames[i]}` : ''}</option>
+                      <option key={i} value={i}>{t('ir.slotOption', { number: i + 1 })}{irNames[i] ? ` — ${irNames[i]}` : ''}</option>
                     ))}
                   </select>
-                  <button className="btn btn-xs" onClick={handleIRDownloadBackup} disabled={!midiRef.current || irStatus === 'processing' || irStatus === 'writing'} title="Download current slot data as backup">
-                    Backup
+                  <button className="btn btn-xs" onClick={handleIRDownloadBackup} disabled={!midiRef.current || irStatus === 'processing' || irStatus === 'writing'} title={t('ir.backup')}>
+                    {t('ir.backup')}
                   </button>
                 </div>
                 <div className="ir-upload-row">
-                  <label className="ir-label">Dist:</label>
+                  <label className="ir-label">{t('ir.dist')}</label>
                   <input className="ir-range" type="range" min="0" max="1" step="0.01" value={irDistance} onChange={e => setIrDistance(parseFloat(e.target.value))} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'} />
                   <span className="ir-range-value">{irDistance.toFixed(2)}</span>
                 </div>
                 <div className="ir-upload-row">
-                  <label className="ir-label">Name:</label>
-                  <input className="ir-input" type="text" value={irName} onChange={e => setIrName(e.target.value)} placeholder={`Custom IR ${irSlot + 1}`} maxLength={32} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'} />
+                  <label className="ir-label">{t('ir.name')}</label>
+                  <input className="ir-input" type="text" value={irName} onChange={e => setIrName(e.target.value)} placeholder={t('ir.namePlaceholder', { number: irSlot + 1 })} maxLength={32} disabled={irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'} />
                 </div>
                 <div className="ir-upload-row">
                   <button
@@ -697,11 +704,11 @@ export default function App() {
                     onClick={handleIRUpload}
                     disabled={!irPreprocessed || !midiRef.current || irStatus === 'processing' || irStatus === 'writing' || irStatus === 'erasing'}
                   >
-                    {irStatus === 'erasing' ? 'Erasing...' :
+                    {irStatus === 'erasing' ? t('ir.erasing') :
                      irStatus === 'writing' ? `${Math.round(irProgress.current / irProgress.total * 100)}%` :
-                     irStatus === 'verifying' ? 'Verifying...' :
-                     irStatus === 'done' ? 'Uploaded!' :
-                     'Upload to Pedal'}
+                     irStatus === 'verifying' ? t('ir.verifying') :
+                     irStatus === 'done' ? t('ir.done') :
+                     t('ir.upload')}
                   </button>
                   {(irStatus === 'writing' || irStatus === 'erasing' || irStatus === 'verifying') && (
                     <div className="ir-progress-bar">
@@ -714,10 +721,10 @@ export default function App() {
               {Object.keys(irNames).length > 0 && (
                 <div className="ir-names-list">
                   {Array.from({ length: IR_SLOT_COUNT }, (_, i) => irNames[i] ? (
-                    <div key={i} className="ir-name-entry" onClick={() => handleIRLoadSlot(i)} title="Click to load to RAM">
-                      <span className="ir-name-slot">Slot {i + 1}</span>
+                    <div key={i} className="ir-name-entry" onClick={() => handleIRLoadSlot(i)} title={t('ir.clickToLoad')}>
+                      <span className="ir-name-slot">{t('ir.slotLabel', { number: i + 1 })}</span>
                       <span className="ir-name-label">{irNames[i]}</span>
-                      <button className="btn btn-xs btn-danger" onClick={e => { e.stopPropagation(); const u = { ...irNames }; delete u[i]; saveIrNames(u); }} title="Remove name">✕</button>
+                      <button className="btn btn-xs btn-danger" onClick={e => { e.stopPropagation(); const u = { ...irNames }; delete u[i]; saveIrNames(u); }} title={t('ir.removeName')}>✕</button>
                     </div>
                   ) : null)}
                 </div>
@@ -727,57 +734,57 @@ export default function App() {
 
           <div className="status-msg">
             <span className={`status-msg-dot ${statusType}`} />
-            <span>{status || 'Ready'}</span>
+            <span>{status || t('status.ready')}</span>
           </div>
 
-          <button className="btn btn-xs" onClick={() => setShowHelp(true)} title="Help & About">?</button>
+          <button className="btn btn-xs" onClick={() => setShowHelp(true)} title={t('help.title')}>?</button>
           {showHelp && (
             <div className="help-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }}>
               <div className="help-modal">
-                <button className="btn btn-xs btn-danger" onClick={() => setShowHelp(false)} title="Close">?</button>
-                <h2>Cube Baby Presets Live</h2>
-                <p className="help-desc">Cross-platform editor for the SINCO / Cuvave Cube Baby multi-FX guitar pedal.</p>
+                <button className="btn btn-xs btn-danger" onClick={() => setShowHelp(false)} title={t('help.close')}>?</button>
+                <h2>{t('help.appTitle')}</h2>
+                <p className="help-desc">{t('help.appDesc')}</p>
                 
-                <h3>Features</h3>
+                <h3>{t('help.features')}</h3>
                 <ul className="help-features">
-                  <li>Edit all 10 preset parameters (Type, Gain, Tone, Reverb, Feedback, Volume, Time, Mix, Modulation, Cabinet)</li>
-                  <li>Read/write presets A/B/C with live sync</li>
-                  <li>Toggle IR, Delay, and Tone sections independently</li>
-                  <li>Upload custom impulse responses (IR) to RAM or ROM</li>
-                  <li>Export/import presets as JSON files</li>
-                  <li>Backup/restore factory cabinet IRs</li>
+                  <li>{t('help.feature1')}</li>
+                  <li>{t('help.feature2')}</li>
+                  <li>{t('help.feature3')}</li>
+                  <li>{t('help.feature4')}</li>
+                  <li>{t('help.feature5')}</li>
+                  <li>{t('help.feature6')}</li>
                 </ul>
                 
-                <h3>IR Upload</h3>
-                <p>Upload custom WAV files as impulse responses:</p>
+                <h3>{t('help.irTitle')}</h3>
+                <p>{t('help.irDesc')}</p>
                 <ul className="help-features">
-                  <li>Auto-resampled to 48kHz</li>
-                  <li>Normalized to peak 1.0</li>
-                  <li>Up to 512 samples (RAM) or 1024 samples (ROM)</li>
-                  <li>9 persistent IR slots with header flags</li>
+                  <li>{t('help.irFeature1')}</li>
+                  <li>{t('help.irFeature2')}</li>
+                  <li>{t('help.irFeature3')}</li>
+                  <li>{t('help.irFeature4')}</li>
                 </ul>
                 
-                <h3>Protocol</h3>
-                <p>Uses the reverse-engineered SysEx protocol from <a href="https://github.com/pferreir/cuvave-midi" target="_blank" rel="noopener noreferrer">pferreir/cuvave-midi</a>.</p>
-                <p>See <code>knowledge_base.md</code> for detailed protocol documentation.</p>
+                <h3>{t('help.protocol')}</h3>
+                <p dangerouslySetInnerHTML={{ __html: t('help.protocolDesc', { link: '<a href="https://github.com/pferreir/cuvave-midi" target="_blank" rel="noopener noreferrer">pferreir/cuvave-midi</a>' }) }} />
+                <p dangerouslySetInnerHTML={{ __html: t('help.protocolDoc', { file: '<code>knowledge_base.md</code>' }) }} />
                 
-                <h3>Hardware</h3>
-                <p>Requires a USB MIDI interface connected to the Cube Baby pedal. On Android, you'll need a USB OTG cable and USB-MIDI adapter.</p>
+                <h3>{t('help.hardware')}</h3>
+                <p>{t('help.hardwareDesc')}</p>
                 
-                <h3>Version</h3>
-                <p>v0.1.0 ? MIT License</p>
+                <h3>{t('help.version')}</h3>
+                <p>v0.3.2 — {t('help.license')}</p>
               </div>
             </div>
           )}
                     <details className="debug-section">
             <summary className="debug-summary" onClick={(e) => { e.preventDefault(); setShowDebug(!showDebug); }}>
               <span className="debug-toggle">{showDebug ? '▼' : '▶'}</span>
-              Debug Log {debugLog.length > 0 && `(${debugLog.length})`}
+              {t('debug.title')} {debugLog.length > 0 && `(${debugLog.length})`}
             </summary>
             <div className="debug-content">
               <div className="debug-actions">
-                <button className="btn btn-xs btn-danger" onClick={() => setDebugLog([])}>Clear</button>
-                <button className="btn btn-xs btn-secondary" onClick={handleIRScan} disabled={!connected}>Scan IR</button>
+                <button className="btn btn-xs btn-danger" onClick={() => setDebugLog([])}>{t('debug.clear')}</button>
+                <button className="btn btn-xs btn-secondary" onClick={handleIRScan} disabled={!connected}>{t('debug.scan')}</button>
               </div>
               {debugLog.length > 0 && (
                 <div className="debug-log">
@@ -792,16 +799,20 @@ export default function App() {
       {!connected && (
         <div className="welcome">
           <div className="welcome-icon">◆</div>
-          <h2>Cube Baby Presets</h2>
-          <p>Connect your Cuvave/Cube Baby pedal via USB MIDI to edit, save, and share presets.</p>
+          <h2>{t('welcome.title')}</h2>
+          <p>{t('welcome.desc')}</p>
           <ul className="welcome-features">
-            <li>Edit all 10 parameters in real-time</li>
-            <li>Save presets to pedal slots A/B/C</li>
-            <li>Export/import presets as shareable files</li>
-            <li>Toggle IR, Delay, and Tone sections on/off</li>
+            <li>{t('welcome.feature1')}</li>
+            <li>{t('welcome.feature2')}</li>
+            <li>{t('welcome.feature3')}</li>
+            <li>{t('welcome.feature4')}</li>
           </ul>
+          <div className="welcome-language">
+            <label>{t('welcome.language')}: </label>
+            <LanguageSelector />
+          </div>
           <button className="btn-connect btn-connect-large" onClick={handleConnect} disabled={connecting}>
-            {connecting ? 'Connecting...' : 'Connect'}
+            {connecting ? t('app.connecting') : t('app.connect')}
           </button>
           {status && (
             <div className={`status-msg welcome-status ${statusType}`}>
