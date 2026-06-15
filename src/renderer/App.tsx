@@ -2,100 +2,21 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CubeBabyMidi } from '../midi/cubeBabyMidi';
 import type { PresetName } from '../protocol/types';
-import { PRESETS, IR_SLOT_COUNT } from '../protocol/types';
+import { PRESETS, IR_SLOT_COUNT, IR_ROM_SLOT_SIZE } from '../protocol/types';
 import { Pedal } from './components/Pedal';
-import LanguageSelector from './components/LanguageSelector';
-import { settingsToKnobValues, knobValuesToSettings, KnobValues } from '../protocol';
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { HelpModal } from './components/HelpModal';
+import { DebugPanel } from './components/DebugPanel';
+import { StatusBar } from './components/StatusBar';
+import { settingsToKnobValues, knobValuesToSettings } from '../protocol';
+import type { KnobValues } from '../protocol';
 import { processWavFile, irToBytes, padIrToRomBytes, irSummary, float32ToWav } from './irProcessor';
-import { IR_ROM_SLOT_SIZE } from '../protocol/types';
 import { changeLanguage, getDirection } from '../i18n/i18n';
 import { listMidiDevices } from '../midi/midiService';
 import type { MidiDeviceInfo } from '../midi/midiService';
-
-interface Model {
-  id: string;
-  name: string;
-  knobs: Record<string, [number, number]>;
-}
-
-const cubeBabyModel: Model = {
-  id: 'cube-baby',
-  name: 'Cube Baby',
-  knobs: {
-    type: [0, 8],
-    gain: [0, 7],
-    tone: [0, 15],
-    mod: [0, 15],
-    time: [0, 31],
-    fb: [0, 127],
-    mix: [0, 118],
-    reverb: [0, 15],
-    ir_cab: [0, 8],
-    volume: [0, 127],
-  },
-};
-
-const PRESET_COLORS: Record<string, string> = {
-  A: '#f39c12',
-  B: '#2ecc71',
-  C: '#3498db',
-};
-
-const EMPTY_KNOBS: KnobValues = {
-  type: 0, gain: 0, tone: 0, mod: 0, time: 0,
-  fb: 0, mix: 0, reverb: 0, ir_cab: 0, volume: 0,
-  irSection: true, delaySection: true, toneSection: true,
-};
-
-const FACTORY_DEFAULT_KNOBS: KnobValues = {
-  type: 0, gain: 4, tone: 8, mod: 7, time: 16,
-  fb: 0, mix: 59, reverb: 8, ir_cab: 0, volume: 100,
-  irSection: true, delaySection: true, toneSection: true,
-};
-
-const MAX_UNDO_DEPTH = 30;
-
-interface PresetFile {
-  format: 'cubebabypreset';
-  version: 1;
-  preset: PresetName;
-  knobs: KnobValues;
-  created: string;
-}
-
-interface BankFile {
-  format: 'cubebabybank';
-  version: 1;
-  presets: Record<PresetName, KnobValues>;
-  created: string;
-}
-
-function downloadJson(data: unknown, filename: string): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function loadFile(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.cubebabypreset,.cubebabybank,.json';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) { reject(new Error('No file selected')); return; }
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
-    };
-    input.click();
-  });
-}
+import { cubeBabyModel, PRESET_COLORS, EMPTY_KNOBS, FACTORY_DEFAULT_KNOBS, MAX_UNDO_DEPTH } from './constants';
+import type { PresetFile, BankFile } from './helpers';
+import { downloadJson, loadFile } from './helpers';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -919,108 +840,31 @@ export default function App() {
             </div>
           </details>
 
-          <div className="status-msg">
-            <span className={`status-msg-dot ${statusType}`} />
-            <span>{status || t('status.ready')}</span>
-          </div>
+          <StatusBar status={status} statusType={statusType} />
 
           <button className="btn btn-xs" onClick={() => setShowHelp(true)} title={t('help.title')}>?</button>
-          {showHelp && (
-            <div className="help-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }}>
-              <div className="help-modal">
-                <button className="btn btn-xs btn-danger" onClick={() => setShowHelp(false)} title={t('help.close')}>?</button>
-                <h2>{t('help.appTitle')}</h2>
-                <p className="help-desc">{t('help.appDesc')}</p>
-                
-                <h3>{t('help.features')}</h3>
-                <ul className="help-features">
-                  <li>{t('help.feature1')}</li>
-                  <li>{t('help.feature2')}</li>
-                  <li>{t('help.feature3')}</li>
-                  <li>{t('help.feature4')}</li>
-                  <li>{t('help.feature5')}</li>
-                  <li>{t('help.feature6')}</li>
-                </ul>
-                
-                <h3>{t('help.irTitle')}</h3>
-                <p>{t('help.irDesc')}</p>
-                <ul className="help-features">
-                  <li>{t('help.irFeature1')}</li>
-                  <li>{t('help.irFeature2')}</li>
-                  <li>{t('help.irFeature3')}</li>
-                  <li>{t('help.irFeature4')}</li>
-                </ul>
-                
-                <h3>{t('help.protocol')}</h3>
-                <p dangerouslySetInnerHTML={{ __html: t('help.protocolDesc', { link: '<a href="https://github.com/pferreir/cuvave-midi" target="_blank" rel="noopener noreferrer">pferreir/cuvave-midi</a>' }) }} />
-                <p dangerouslySetInnerHTML={{ __html: t('help.protocolDoc', { file: '<code>knowledge_base.md</code>' }) }} />
-                
-                <h3>{t('help.hardware')}</h3>
-                <p>{t('help.hardwareDesc')}</p>
-                
-                <h3>{t('help.version')}</h3>
-                <p>v0.3.2 — {t('help.license')}</p>
-              </div>
-            </div>
-          )}
-                    <details className="debug-section">
-            <summary className="debug-summary" onClick={(e) => { e.preventDefault(); setShowDebug(!showDebug); }}>
-              <span className="debug-toggle">{showDebug ? '▼' : '▶'}</span>
-              {t('debug.title')} {debugLog.length > 0 && `(${debugLog.length})`}
-            </summary>
-            <div className="debug-content">
-              <div className="debug-actions">
-                <button className="btn btn-xs btn-danger" onClick={() => setDebugLog([])}>{t('debug.clear')}</button>
-                <button className="btn btn-xs btn-secondary" onClick={handleIRScan} disabled={!connected}>{t('debug.scan')}</button>
-              </div>
-              {debugLog.length > 0 && (
-                <div className="debug-log">
-                  {debugLog.map((r, i) => <div key={i} className="debug-line">{r}</div>)}
-                </div>
-              )}
-            </div>
-          </details>
+          <HelpModal show={showHelp} onClose={() => setShowHelp(false)} />
+          <DebugPanel
+            showDebug={showDebug}
+            debugLog={debugLog}
+            connected={connected}
+            onToggle={() => setShowDebug(v => !v)}
+            onClear={() => setDebugLog([])}
+            onScanIR={handleIRScan}
+          />
         </>
       )}
 
       {!connected && (
-        <div className="welcome">
-          <div className="welcome-icon">◆</div>
-          <h2>{t('welcome.title')}</h2>
-          <p>{t('welcome.desc')}</p>
-          <ul className="welcome-features">
-            <li>{t('welcome.feature1')}</li>
-            <li>{t('welcome.feature2')}</li>
-            <li>{t('welcome.feature3')}</li>
-            <li>{t('welcome.feature4')}</li>
-          </ul>
-          {midiDevices.length > 1 && (
-            <div className="welcome-midi-devices">
-              <label>{t('welcome.midiDevice')}: </label>
-              <select className="pedal-select welcome-select" value={selectedMidiDeviceId} onChange={e => setSelectedMidiDeviceId(e.target.value)}>
-                {midiDevices.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {midiDevices.length === 0 && !connecting && (
-            <p className="welcome-no-devices">{t('welcome.noMidiDevices')}</p>
-          )}
-          <div className="welcome-language">
-            <label>{t('welcome.language')}: </label>
-            <LanguageSelector />
-          </div>
-          <button className="btn-connect btn-connect-large" onClick={handleConnect} disabled={connecting}>
-            {connecting ? t('app.connecting') : t('app.connect')}
-          </button>
-          {status && (
-            <div className={`status-msg welcome-status ${statusType}`}>
-              <span className={`status-msg-dot ${statusType}`} />
-              <span>{status}</span>
-            </div>
-          )}
-        </div>
+        <WelcomeScreen
+          connecting={connecting}
+          status={status}
+          statusType={statusType}
+          midiDevices={midiDevices}
+          selectedMidiDeviceId={selectedMidiDeviceId}
+          onConnect={handleConnect}
+          onDeviceChange={setSelectedMidiDeviceId}
+        />
       )}
     </div>
   );
