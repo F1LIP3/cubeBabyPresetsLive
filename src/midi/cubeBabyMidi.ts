@@ -201,7 +201,7 @@ export class CubeBabyMidi {
       if (!field) continue;
       const raw = targetSettings[field];
       const value = typeof raw === 'boolean' ? (raw ? 1 : 0) : raw;
-      const msg = buildWriteParameterMessage('A', paramName as ParameterName, value);
+      const msg = buildWriteParameterMessage(preset as PresetName, paramName as ParameterName, value);
       this.send(msg);
     }
 
