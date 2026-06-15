@@ -42,6 +42,19 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
 }
 
+// Auto-sync web assets from Vite build before assembling the APK
+// This prevents blank-screen issues from stale web assets.
+task syncWebAssets(type: Exec) {
+    workingDir = file('../../')
+    commandLine providers.systemProperty('os.name').get().toLowerCase().contains('win')
+        ? ['npx.cmd', 'cap', 'copy', 'android']
+        : ['npx', 'cap', 'copy', 'android']
+    ignoreExitValue true
+}
+tasks.matching { it.name.startsWith('merge') && it.name.endsWith('Assets') }.configureEach {
+    dependsOn syncWebAssets
+}
+
 apply from: 'capacitor.build.gradle'
 
 try {
