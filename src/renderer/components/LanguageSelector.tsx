@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, changeLanguage, getDirection } from '../../i18n/i18n';
+import type { LangCode } from '../../i18n/i18n';
 
 export default function LanguageSelector() {
   const { i18n } = useTranslation();
@@ -10,8 +11,8 @@ export default function LanguageSelector() {
         className="language-select"
         value={i18n.language}
         onChange={(e) => {
-          changeLanguage(e.target.value);
-          document.documentElement.dir = getDirection(e.target.value);
+          changeLanguage(e.target.value as LangCode);
+          document.documentElement.dir = getDirection(e.target.value as LangCode);
         }}
       >
         {LANGUAGES.map((lang) => (

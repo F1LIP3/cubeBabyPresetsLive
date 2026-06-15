@@ -14,7 +14,7 @@ export async function processWavFile(file: File): Promise<Float32Array> {
     await ctx.close();
   }
 
-  const channels = [];
+  const channels: Float32Array[] = [];
   for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
     channels.push(audioBuffer.getChannelData(i));
   }

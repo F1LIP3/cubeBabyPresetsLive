@@ -44,6 +44,8 @@ function messagesMatch(request: Message, response: Message): boolean {
   return false;
 }
 
+declare var Capacitor: { isNative: boolean; isNativePlatform?: () => boolean };
+
 interface PendingEntry {
   request: Message;
   resolve: (msg: Message) => void;

@@ -22,6 +22,7 @@ export function VirtualPresetBar({
   const [renameValue, setRenameValue] = useState('');
 
   const selected = virtualPresets.find(p => p.id === selectedVirtualPresetId);
+  const selectedValue = selected ? selected.id : (virtualPresets.length > 0 ? virtualPresets[0].id : '');
 
   const handleStartRename = (id: string, currentName: string) => {
     setRenamingId(id);
@@ -40,7 +41,7 @@ export function VirtualPresetBar({
       <div className="virtual-preset-selector">
         <select
           className="virtual-preset-select"
-          value={selectedVirtualPresetId || ''}
+          value={selectedValue}
           onChange={e => onSelectPreset(e.target.value)}
         >
           {virtualPresets.length === 0 && (
