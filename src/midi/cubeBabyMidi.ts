@@ -52,7 +52,7 @@ interface PendingEntry {
 }
 
 function createMidiService(): MidiService {
-  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()) {
+  if (typeof Capacitor !== 'undefined' && (Capacitor.isNative || Capacitor.isNativePlatform?.())) {
     return new CapacitorMidiService();
   }
   return new WebMidiService();

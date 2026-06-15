@@ -803,6 +803,12 @@ export default function App() {
           <button className="btn-connect btn-connect-large" onClick={handleConnect} disabled={connecting}>
             {connecting ? 'Connecting...' : 'Connect'}
           </button>
+          {status && (
+            <div className={`status-msg welcome-status ${statusType}`}>
+              <span className={`status-msg-dot ${statusType}`} />
+              <span>{status}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
