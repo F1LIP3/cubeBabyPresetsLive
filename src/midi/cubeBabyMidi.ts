@@ -1,4 +1,4 @@
-﻿import type { Message, Settings, PresetName, ParameterName } from '../protocol/types';
+import type { Message, Settings, PresetName, ParameterName } from '../protocol/types';
 import { messageFromSysex, messageToSysex } from '../protocol/parser';
 import {
   buildReadPresetMessage,
@@ -19,7 +19,7 @@ import {
   buildEraseIRRomSectorMessage,
   KnobValues,
 } from '../protocol';
-import { PARAMETER_NAMES, ACTIVE_SETTINGS_ADDR, COMMAND_TYPE, IR_WRITE_CHUNK_SIZE, IR_SLOT_SIZE, IR_ROM_SLOT_SIZE } from '../protocol/types';
+import { PARAMETER_NAMES, ACTIVE_SETTINGS_ADDR, SETTINGS_BASE_ADDR, COMMAND_TYPE, IR_WRITE_CHUNK_SIZE, IR_SLOT_SIZE, IR_ROM_SLOT_SIZE } from '../protocol/types';
 import type { MidiService } from './midiService';
 import { WebMidiService } from './webMidiService';
 import { CapacitorMidiService } from './capacitorMidiService';
@@ -34,7 +34,7 @@ function messagesMatch(request: Message, response: Message): boolean {
   if (request.type === 'Init' && response.type === 'ACK') return true;
   if (request.type === 'RequestNameVersion' && response.type === 'NameVersion') return true;
   if (request.type === 'ReadMemory' && response.type === 'MemoryContent') {
-    return response.cmd === request.cmd && response.addr === request.addr;
+    return response.addr === request.addr;
   }
   if (request.type === 'WriteMemory' && response.type === 'ACK') return true;
   if (request.type === 'Erase' && response.type === 'ACK') return true;
@@ -183,65 +183,46 @@ export class CubeBabyMidi {
   }
 
   /** Switch the pedal's active preset.
-   *  1. Write target data to slot A (0x80000000) — immediate sound change
-   *  2. Write target data to 0x0000 with preset selector bits — updates LED */
+   *  Writes full 16-byte settings to 0x0000 with preset selector bits in byte 0.
+   *  Single-byte param writes are rejected by the pedal, so we use one full 16-byte write.
+   *  Full writes always return ACK:false but the data IS written. */
   async switchPreset(preset: PresetName, targetSettings: Settings): Promise<void> {
-    this._activePreset = preset;
+    console.log(`[switchPreset] Targeting preset: ${preset}`);
+    if (!this._connected) { console.warn(`[switchPreset] MIDI not connected!`); return; }
+    if (!targetSettings || Object.keys(targetSettings).length === 0) { console.warn(`[switchPreset] No settings provided for $preset`); return; }
 
-    // 1. Write ALL parameters to slot A — fire-and-forget (no ACK wait)
-    const paramToField: Record<string, keyof Settings> = {
-      Type: 'type', Gain: 'gain', Tone: 'tone',
-      Reverb: 'reverb', Feedback: 'feedback', Volume: 'volume',
-      Time: 'time', Mix: 'mix', Modulation: 'modulation',
-      Cabinet: 'cabinet',
-      IRSection: 'irSection', DelaySection: 'delaySection', ToneSection: 'toneSection',
-    };
-    for (const paramName of PARAMETER_NAMES) {
-      const field = paramToField[paramName];
-      if (!field) continue;
-      const raw = targetSettings[field];
-      const value = typeof raw === 'boolean' ? (raw ? 1 : 0) : raw;
-      const addr = ACTIVE_SETTINGS_ADDR + PARAMETER_ADDRESS_OFFSET[paramName];
-      const msg: Message = {
-        type: 'WriteMemory',
-        cmd: COMMAND_TYPE,
-        addr,
-        len: 1,
-        data: new Uint8Array([value]),
-      };
-      this.send(msg);
-    }
-
-    // 2. Write full settings to 0x0000 with preset selector bits — updates LED
+    // Write full settings to 0x0000 with preset selector bits in byte 0.
+    // Single-byte writes (len=1) are rejected by the pedal, so we use a full 16-byte write.
+    // Full 16-byte writes always return ACK:false but the data IS written.
     const data = settingsToBytes(targetSettings);
     const presetBits = preset === 'A' ? 0x00 : preset === 'B' ? 0x10 : 0x20;
     data[0] = (data[0] & 0xCF) | presetBits;
-    const settingsMsg: Message = {
+    const msg: Message = {
       type: 'WriteMemory',
       cmd: COMMAND_TYPE,
       addr: ACTIVE_SETTINGS_ADDR,
       len: 16,
       data,
     };
-    this.send(settingsMsg);
+    await this.sendAndWait(msg);
   }
 
   async writeSingleKnob(knobName: string, value: number): Promise<void> {
     const paramName = knobValueToParameterName(knobName);
-    // Always write to slot A — that's where the pedal physically reads from
+    // Always write to slot A � that's where the pedal physically reads from
     const msg = buildWriteParameterMessage('A', paramName, value);
     await this.sendAndWait(msg);
   }
 
   async toggleSection(section: 'A' | 'B' | 'C', on: boolean): Promise<void> {
     const paramName: ParameterName = section === 'A' ? 'IRSection' : section === 'B' ? 'DelaySection' : 'ToneSection';
-    // Always write to slot A — that's where the pedal physically reads from
+    // Always write to slot A � that's where the pedal physically reads from
     const msg = buildWriteParameterMessage('A', paramName, on ? 1 : 0);
     await this.sendAndWait(msg);
   }
 
   async writeParameterLive(param: ParameterName, value: number): Promise<void> {
-    // Always write to slot A — that's where the pedal physically reads from
+    // Always write to slot A � that's where the pedal physically reads from
     const msg = buildWriteParameterMessage('A', param, value);
     await this.sendAndWait(msg);
   }
@@ -259,7 +240,7 @@ export class CubeBabyMidi {
       if (!field) continue;
       const raw = settings[field];
       const value = typeof raw === 'boolean' ? (raw ? 1 : 0) : raw;
-      // Always write to slot A — that's where the pedal physically reads from
+      // Always write to slot A � that's where the pedal physically reads from
       await this.writeParameterLive(paramName as ParameterName, value);
     }
   }
@@ -306,7 +287,7 @@ export class CubeBabyMidi {
     this.sendRawMidi([0xF0, 0x7F, 0x7F, 0x06, command & 0x7F, 0xF7]);
   }
 
-  // ── IR operations ──
+  // -- IR operations --
 
   private sleep(ms: number): Promise<void> {
     return new Promise(r => setTimeout(r, ms));

@@ -51,10 +51,11 @@ export function bytesToSettings(data: Uint8Array): Settings {
 }
 
 export function buildReadPresetMessage(preset: PresetName): Message {
+  const addr = presetSlotAddr(preset);
   return {
     type: 'ReadMemory',
     cmd: COMMAND_TYPE,
-    addr: presetSlotAddr(preset),
+    addr,
     len: 16,
   };
 }
@@ -118,7 +119,7 @@ export function buildMystery2Message(): Message {
   return { type: 'Mystery2' };
 }
 
-// â”€â”€ IR memory operations â”€â”€
+// â""â"" IR memory operations â""â""
 import {
   IR_CMD_RAM, IR_CMD_ROM,
   IR_USABLE_ADDR, IR_DISTANCE_ADDR, IR_DATA_RAM_ADDR, IR_DATA_ROM_ADDR,

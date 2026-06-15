@@ -90,7 +90,8 @@ export default function App() {
   const [selectedPreset, setSelectedPreset] = useState<PresetName>('A');
   const [mode, setMode] = useState<'live' | 'preset'>('preset');
   const [knobValues, setKnobValues] = useState<KnobValues>(EMPTY_KNOBS);
-  const [allKnobs, setAllKnobs] = useState<Record<PresetName, KnobValues>>({ A: EMPTY_KNOBS, B: EMPTY_KNOBS, C: EMPTY_KNOBS });
+  const [allKnobs, setAllKnobs] = useState<Record<PresetName, KnobValues>>(() => { try { const saved = localStorage.getItem(`allKnobs`); if (saved) { const parsed = JSON.parse(saved); if (parsed && parsed.A && parsed.B && parsed.C) return parsed; } } catch (e) { } return { A: EMPTY_KNOBS, B: EMPTY_KNOBS, C: EMPTY_KNOBS }; });
+  useEffect(() => { localStorage.setItem(`allKnobs`, JSON.stringify(allKnobs)); }, [allKnobs]);
   const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState<'info' | 'success' | 'error'>('info');
   const [showDebug, setShowDebug] = useState(false);
@@ -176,6 +177,7 @@ export default function App() {
   }, [setStatusMsg]);
 
   const handleSelectPreset = useCallback(async (preset: PresetName) => {
+    console.log(`[UI] Preset button clicked: ${preset}`, midiRef.current ? "MIDI Connected" : "MIDI NULL");
     setSelectedPreset(preset);
     const cached = allKnobs[preset];
     setKnobValues(cached);
