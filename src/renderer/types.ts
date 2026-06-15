@@ -28,3 +28,22 @@ export interface AppHandlers {
   onModeChange: (mode: 'live' | 'preset') => void;
   onIRFileSelected: (file: File) => void;
 }
+
+export interface VirtualPreset {
+  id: string;
+  name: string;
+  knobs: KnobValues;
+  created: string;
+  updated: string;
+}
+
+export type PresetBank = 'hardware' | 'virtual';
+
+export interface VirtualPresetHandlers {
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onDelete: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  onExportAll: () => void;
+  onImport: () => void;
+}

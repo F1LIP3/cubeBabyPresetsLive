@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { PresetName } from '../../protocol/types';
-import type { KnobValues } from '../../protocol';
-import type { ToolbarHandlers } from '../types';
+import type { ToolbarHandlers, PresetBank } from '../types';
 
 interface ToolbarProps {
   isDirty: boolean;
@@ -10,11 +9,11 @@ interface ToolbarProps {
   importing: boolean;
   undoCount: number;
   redoCount: number;
-  selectedPreset: PresetName;
+  presetBank: PresetBank;
   handlers: ToolbarHandlers;
 }
 
-export function Toolbar({ isDirty, saving, loading, importing, undoCount, redoCount, handlers }: ToolbarProps) {
+export function Toolbar({ isDirty, saving, loading, importing, undoCount, redoCount, presetBank, handlers }: ToolbarProps) {
   const { t } = useTranslation();
 
   return (
@@ -33,15 +32,19 @@ export function Toolbar({ isDirty, saving, loading, importing, undoCount, redoCo
       <button className="btn btn-secondary btn-xs" onClick={handlers.onExportPreset} title={`${t('preset.export')} (Ctrl+E)`}>
         {t('preset.export')}
       </button>
-      <button className="btn btn-secondary btn-xs" onClick={handlers.onExportBank} title={t('preset.bank')}>
-        {t('preset.bank')}
-      </button>
+      {presetBank === 'hardware' && (
+        <button className="btn btn-secondary btn-xs" onClick={handlers.onExportBank} title={t('preset.bank')}>
+          {t('preset.bank')}
+        </button>
+      )}
       <button className="btn btn-secondary btn-xs" onClick={handlers.onImport} disabled={importing} title={`${t('preset.import')} (Ctrl+I)`}>
         {importing ? t('preset.importing') : t('preset.import')}
       </button>
-      <button className="btn btn-secondary btn-xs" onClick={handlers.onRefreshAll} title={t('preset.refresh')}>
-        {t('preset.refresh')}
-      </button>
+      {presetBank === 'hardware' && (
+        <button className="btn btn-secondary btn-xs" onClick={handlers.onRefreshAll} title={t('preset.refresh')}>
+          {t('preset.refresh')}
+        </button>
+      )}
       <button className="btn btn-xs btn-danger" onClick={handlers.onFactoryReset} title={t('preset.factoryReset')}>↺</button>
     </div>
   );

@@ -13,6 +13,7 @@ import { PresetBar } from './components/PresetBar';
 import { Toolbar } from './components/Toolbar';
 import { IRSection } from './components/IRSection';
 import { SkeletonLoader } from './components/SkeletonLoader';
+import { VirtualPresetBar } from './components/VirtualPresetBar';
 import { settingsToKnobValues, knobValuesToSettings } from '../protocol';
 import type { KnobValues } from '../protocol';
 import { processWavFile, irToBytes, padIrToRomBytes, irSummary, float32ToWav } from './irProcessor';
@@ -20,8 +21,26 @@ import { changeLanguage, getDirection } from '../i18n/i18n';
 import { listMidiDevices } from '../midi/midiService';
 import type { MidiDeviceInfo } from '../midi/midiService';
 import { cubeBabyModel, EMPTY_KNOBS, FACTORY_DEFAULT_KNOBS, MAX_UNDO_DEPTH } from './constants';
+import type { VirtualPreset, PresetBank } from './types';
 import type { PresetFile, BankFile } from './helpers';
 import { downloadJson, loadFile } from './helpers';
+
+let nextVirtualId = 1;
+function genVirtualId(): string {
+  while (localStorage.getItem(`vp_exists_${nextVirtualId}`)) nextVirtualId++;
+  const id = `vp_${nextVirtualId}`;
+  nextVirtualId++;
+  return id;
+}
+
+function getDefaultVirtualPresets(): VirtualPreset[] {
+  const now = new Date().toISOString();
+  return [
+    { id: 'vp_1', name: 'Clean', knobs: { type: 0, gain: 2, tone: 8, mod: 0, time: 8, fb: 0, mix: 40, reverb: 8, ir_cab: 0, volume: 100, irSection: true, delaySection: true, toneSection: true }, created: now, updated: now },
+    { id: 'vp_2', name: 'Crunch', knobs: { type: 3, gain: 5, tone: 10, mod: 0, time: 8, fb: 0, mix: 40, reverb: 6, ir_cab: 0, volume: 100, irSection: true, delaySection: true, toneSection: true }, created: now, updated: now },
+    { id: 'vp_3', name: 'Lead', knobs: { type: 5, gain: 7, tone: 12, mod: 4, time: 20, fb: 35, mix: 50, reverb: 10, ir_cab: 0, volume: 110, irSection: true, delaySection: true, toneSection: true }, created: now, updated: now },
+  ];
+}
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -32,9 +51,46 @@ export default function App() {
   const [connecting, setConnecting] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<PresetName>('A');
   const [mode, setMode] = useState<'live' | 'preset'>('preset');
+  const [presetBank, setPresetBank] = useState<PresetBank>(() => {
+    return (localStorage.getItem('presetBank') as PresetBank) || 'hardware';
+  });
   const [knobValues, setKnobValues] = useState<KnobValues>(EMPTY_KNOBS);
   const [allKnobs, setAllKnobs] = useState<Record<PresetName, KnobValues>>(() => { try { const saved = localStorage.getItem(`allKnobs`); if (saved) { const parsed = JSON.parse(saved); if (parsed && parsed.A && parsed.B && parsed.C) return parsed; } } catch (e) { } return { A: EMPTY_KNOBS, B: EMPTY_KNOBS, C: EMPTY_KNOBS }; });
   useEffect(() => { localStorage.setItem(`allKnobs`, JSON.stringify(allKnobs)); }, [allKnobs]);
+  const [virtualPresets, setVirtualPresets] = useState<VirtualPreset[]>(() => {
+    try {
+      const saved = localStorage.getItem('virtualPresets');
+      if (saved) {
+        const parsed = JSON.parse(saved) as VirtualPreset[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach(p => { const num = parseInt(p.id.replace('vp_', '')); if (num >= nextVirtualId) nextVirtualId = num + 1; });
+          return parsed;
+        }
+      }
+    } catch {}
+    return getDefaultVirtualPresets();
+  });
+  useEffect(() => { localStorage.setItem('virtualPresets', JSON.stringify(virtualPresets)); }, [virtualPresets]);
+  const [selectedVirtualPresetId, setSelectedVirtualPresetId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('selectedVirtualPresetId');
+    if (saved) return saved;
+    return 'vp_1';
+  });
+  useEffect(() => { if (selectedVirtualPresetId) localStorage.setItem('selectedVirtualPresetId', selectedVirtualPresetId); }, [selectedVirtualPresetId]);
+  useEffect(() => { localStorage.setItem('presetBank', presetBank); }, [presetBank]);
+
+  const savedKnobs = useMemo(() => {
+    if (presetBank === 'virtual') {
+      const vp = virtualPresets.find(p => p.id === selectedVirtualPresetId);
+      return vp ? vp.knobs : EMPTY_KNOBS;
+    }
+    return allKnobs[selectedPreset] || EMPTY_KNOBS;
+  }, [presetBank, virtualPresets, selectedVirtualPresetId, allKnobs, selectedPreset]);
+
+  const isDirty = useMemo(() => {
+    return JSON.stringify(knobValues) !== JSON.stringify(savedKnobs);
+  }, [knobValues, savedKnobs]);
+
   const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState<'info' | 'success' | 'error'>('info');
   const [showDebug, setShowDebug] = useState(false);
@@ -45,10 +101,6 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const midiRef = useRef<CubeBabyMidi | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [undoStack, setUndoStack] = useState<Record<PresetName, KnobValues[]>>({ A: [], B: [], C: [] });
-  const [redoStack, setRedoStack] = useState<Record<PresetName, KnobValues[]>>({ A: [], B: [], C: [] });
-  const [undoCount, setUndoCount] = useState(0);
-  const [redoCount, setRedoCount] = useState(0);
   const [irFile, setIrFile] = useState<File | null>(null);
   const [irSlot, setIrSlot] = useState(0);
   const [irName, setIrName] = useState('');
@@ -61,14 +113,37 @@ export default function App() {
   const [irDistance, setIrDistance] = useState(0.7);
   const [activeCustomSlot, setActiveCustomSlot] = useState<number | null>(null);
   const [irLabOpen, setIrLabOpen] = useState(() => localStorage.getItem('irLabOpen') !== 'closed');
-  const isDirty = useMemo(() => {
-    return JSON.stringify(knobValues) !== JSON.stringify(allKnobs[selectedPreset]);
-  }, [knobValues, allKnobs, selectedPreset]);
+  const [undoStack, setUndoStack] = useState<Record<string, KnobValues[]>>(() => {
+    const hw: Record<string, KnobValues[]> = { A: [], B: [], C: [] };
+    const saved = localStorage.getItem('virtUndoStack');
+    if (saved) try { return { ...hw, ...JSON.parse(saved) }; } catch {}
+    return hw;
+  });
+  const [redoStack, setRedoStack] = useState<Record<string, KnobValues[]>>(() => {
+    const hw: Record<string, KnobValues[]> = { A: [], B: [], C: [] };
+    const saved = localStorage.getItem('virtRedoStack');
+    if (saved) try { return { ...hw, ...JSON.parse(saved) }; } catch {}
+    return hw;
+  });
+
+  const currentUndoKey: string = presetBank === 'virtual' ? (selectedVirtualPresetId || '__none') : selectedPreset;
+
+  useEffect(() => {
+    const virtUndo: Record<string, KnobValues[]> = {};
+    const virtRedo: Record<string, KnobValues[]> = {};
+    for (const [k, v] of Object.entries(undoStack)) {
+      if (k !== 'A' && k !== 'B' && k !== 'C') { virtUndo[k] = v; }
+    }
+    for (const [k, v] of Object.entries(redoStack)) {
+      if (k !== 'A' && k !== 'B' && k !== 'C') { virtRedo[k] = v; }
+    }
+    if (Object.keys(virtUndo).length) localStorage.setItem('virtUndoStack', JSON.stringify(virtUndo));
+    if (Object.keys(virtRedo).length) localStorage.setItem('virtRedoStack', JSON.stringify(virtRedo));
+  }, [undoStack, redoStack]);
 
   const [midiDevices, setMidiDevices] = useState<MidiDeviceInfo[]>([]);
   const [selectedMidiDeviceId, setSelectedMidiDeviceId] = useState<string>('');
 
-  // Scan MIDI devices on mount
   useEffect(() => {
     listMidiDevices().then(devices => {
       setMidiDevices(devices);
@@ -78,6 +153,13 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (presetBank === 'virtual' && virtualPresets.length > 0 && !selectedVirtualPresetId) {
+      setSelectedVirtualPresetId(virtualPresets[0].id);
+      setKnobValues(virtualPresets[0].knobs);
+    }
+  }, [presetBank]);
+
   const setStatusMsg = useCallback((msg: string, type: 'info' | 'success' | 'error' = 'info') => {
     setStatus(msg);
     setStatusType(type);
@@ -86,6 +168,22 @@ export default function App() {
   const log = useCallback((msg: string) => {
     setDebugLog(prev => [...prev, msg]);
   }, []);
+
+  const handleBankChange = useCallback((bank: PresetBank) => {
+    setPresetBank(bank);
+    if (bank === 'virtual' && virtualPresets.length > 0) {
+      const targetId = selectedVirtualPresetId || virtualPresets[0].id;
+      setSelectedVirtualPresetId(targetId);
+      const vp = virtualPresets.find(p => p.id === targetId);
+      if (vp) {
+        setKnobValues(vp.knobs);
+        if (midiRef.current) {
+          const settings = knobValuesToSettings(vp.knobs);
+          midiRef.current.applySettingsToDsp(settings).catch(() => {});
+        }
+      }
+    }
+  }, [virtualPresets, selectedVirtualPresetId, midiRef]);
 
   const handleConnect = useCallback(async () => {
     setConnecting(true);
@@ -103,12 +201,10 @@ export default function App() {
       };
       await baby.connect(selectedMidiDeviceId || undefined);
       midiRef.current = baby;
-      // Set initial empty values
       setAllKnobs({ A: { ...EMPTY_KNOBS }, B: { ...EMPTY_KNOBS }, C: { ...EMPTY_KNOBS } });
       setKnobValues({ ...EMPTY_KNOBS });
       setConnected(true);
 
-      // Read presets sequentially ? pedal can only handle one SysEx at a time
       const presets: Record<string, any> = {};
       let loadedCount = 0;
       for (const preset of ['A', 'B', 'C'] as const) {
@@ -133,7 +229,7 @@ export default function App() {
     } finally {
       setConnecting(false);
     }
-  }, [log, setStatusMsg, t]);
+  }, [log, setStatusMsg, t, selectedMidiDeviceId]);
 
   const handleDisconnect = useCallback(() => {
     if (midiRef.current) {
@@ -146,7 +242,6 @@ export default function App() {
     setStatusMsg(t('status.disconnected'));
   }, [setStatusMsg, t]);
 
-  // Also ensure the disconnect handler gets re-wired when t changes
   useEffect(() => {
     if (midiRef.current) {
       midiRef.current.onDisconnect = () => {
@@ -158,8 +253,15 @@ export default function App() {
     }
   }, [t, setStatusMsg, log]);
 
+  const loadKnobsToPedal = useCallback(async (knobs: KnobValues) => {
+    if (!midiRef.current) return;
+    try {
+      const settings = knobValuesToSettings(knobs);
+      await midiRef.current.applySettingsToDsp(settings);
+    } catch {}
+  }, [midiRef]);
+
   const handleSelectPreset = useCallback(async (preset: PresetName) => {
-    console.log(`[UI] Preset button clicked: ${preset}`, midiRef.current ? "MIDI Connected" : "MIDI NULL");
     setSelectedPreset(preset);
     const cached = allKnobs[preset];
     setKnobValues(cached);
@@ -175,24 +277,135 @@ export default function App() {
     setStatusMsg(t('status.switched', { name: preset }), 'info');
   }, [allKnobs, setStatusMsg, log, t]);
 
+  const handleSelectVirtualPreset = useCallback(async (id: string) => {
+    const vp = virtualPresets.find(p => p.id === id);
+    if (!vp) return;
+    setSelectedVirtualPresetId(id);
+    setKnobValues(vp.knobs);
+    await loadKnobsToPedal(vp.knobs);
+    setStatusMsg(t('status.switched', { name: vp.name }), 'info');
+  }, [virtualPresets, loadKnobsToPedal, setStatusMsg, t]);
+
+  const handleAddVirtualPreset = useCallback(() => {
+    if (virtualPresets.length >= 50) {
+      setStatusMsg('Maximum 50 virtual presets', 'error');
+      return;
+    }
+    const newName = `Preset ${virtualPresets.length + 1}`;
+    const now = new Date().toISOString();
+    const newVp: VirtualPreset = {
+      id: genVirtualId(),
+      name: newName,
+      knobs: { ...knobValues },
+      created: now,
+      updated: now,
+    };
+    setVirtualPresets(prev => [...prev, newVp]);
+    setSelectedVirtualPresetId(newVp.id);
+    setStatusMsg(t('virtual.added'), 'success');
+  }, [virtualPresets, knobValues, setStatusMsg, t]);
+
+  const handleDeleteVirtualPreset = useCallback((id: string) => {
+    const vp = virtualPresets.find(p => p.id === id);
+    if (!vp) return;
+    const msg = t('virtual.confirmDelete', { name: vp.name });
+    if (!confirm(msg)) return;
+    const filtered = virtualPresets.filter(p => p.id !== id);
+    setVirtualPresets(filtered);
+    if (selectedVirtualPresetId === id) {
+      if (filtered.length > 0) {
+        const first = filtered[0];
+        setSelectedVirtualPresetId(first.id);
+        setKnobValues(first.knobs);
+        loadKnobsToPedal(first.knobs);
+      } else {
+        setSelectedVirtualPresetId(null);
+        setKnobValues(EMPTY_KNOBS);
+      }
+    }
+    setStatusMsg(t('virtual.deleted'), 'info');
+  }, [virtualPresets, selectedVirtualPresetId, loadKnobsToPedal, setStatusMsg, t]);
+
+  const handleRenameVirtualPreset = useCallback((id: string, name: string) => {
+    setVirtualPresets(prev => prev.map(p =>
+      p.id === id ? { ...p, name, updated: new Date().toISOString() } : p
+    ));
+    setStatusMsg(t('virtual.renamed'), 'success');
+  }, [setStatusMsg, t]);
+
   const handleSave = useCallback(async () => {
-    if (!midiRef.current) return;
-    setSaving(true);
-    setStatusMsg(t('status.loadingPreset', { name: selectedPreset }));
+    if (presetBank === 'virtual') {
+      if (!selectedVirtualPresetId) return;
+      setVirtualPresets(prev => prev.map(p =>
+        p.id === selectedVirtualPresetId
+          ? { ...p, knobs: knobValues, updated: new Date().toISOString() }
+          : p
+      ));
+      setStatusMsg(t('virtual.saved'), 'success');
+    }
+    if (midiRef.current) {
+      setSaving(true);
+      try {
+        const settings = knobValuesToSettings(knobValues);
+        if (presetBank === 'hardware') {
+          await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
+          setAllKnobs(prev => ({ ...prev, [selectedPreset]: knobValues }));
+          setStatusMsg(t('status.savedToPedal', { name: selectedPreset }), 'success');
+        } else {
+          await midiRef.current.applySettingsToDsp(settings);
+          setStatusMsg(t('status.savedToPedal', { name: knobValues.type }), 'success');
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setStatusMsg(t('status.saveFailed', { message }), 'error');
+      } finally {
+        setSaving(false);
+      }
+    }
+  }, [presetBank, selectedVirtualPresetId, knobValues, midiRef, selectedPreset, setStatusMsg, t]);
+
+  const handleExportVirtualPresets = useCallback(() => {
+    const file = {
+      format: 'cubebabyvirtualbank',
+      version: 1,
+      presets: virtualPresets,
+      created: new Date().toISOString(),
+    };
+    downloadJson(file, 'cube-baby-virtual-presets.json');
+    setStatusMsg(t('status.exportedBank'), 'success');
+  }, [virtualPresets, setStatusMsg, t]);
+
+  const handleImportVirtualPresets = useCallback(async () => {
     try {
-      const settings = knobValuesToSettings(knobValues);
-      await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
-      setAllKnobs(prev => ({ ...prev, [selectedPreset]: knobValues }));
-      setStatusMsg(t('status.savedToPedal', { name: selectedPreset }), 'success');
+      const text = await loadFile();
+      const data = JSON.parse(text);
+      if (data.format === 'cubebabyvirtualbank' && Array.isArray(data.presets)) {
+        const imported = data.presets as VirtualPreset[];
+        if (imported.length + virtualPresets.length > 50) {
+          setStatusMsg('Import would exceed 50 preset limit', 'error');
+          return;
+        }
+        const merged = [...virtualPresets];
+        for (const vp of imported) {
+          const newId = genVirtualId();
+          merged.push({ ...vp, id: newId });
+        }
+        setVirtualPresets(merged);
+        setStatusMsg(`Imported ${imported.length} virtual presets`, 'success');
+      } else {
+        setStatusMsg(t('status.unknownFormat'), 'error');
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatusMsg(t('status.saveFailed', { message }), 'error');
-    } finally {
-      setSaving(false);
+      setStatusMsg(t('status.importFailed', { message }), 'error');
     }
-  }, [selectedPreset, knobValues, setStatusMsg]);
+  }, [virtualPresets, setStatusMsg, t]);
 
   const handleExportPreset = useCallback(() => {
+    if (presetBank === 'virtual') {
+      handleExportVirtualPresets();
+      return;
+    }
     const file: PresetFile = {
       format: 'cubebabypreset',
       version: 1,
@@ -202,7 +415,7 @@ export default function App() {
     };
     downloadJson(file, `cube-baby-${selectedPreset}.cubebabypreset`);
     setStatusMsg(t('status.exportedPreset', { name: selectedPreset }), 'success');
-  }, [selectedPreset, knobValues, setStatusMsg, t]);
+  }, [presetBank, selectedPreset, knobValues, setStatusMsg, t, handleExportVirtualPresets]);
 
   const handleExportBank = useCallback(() => {
     const file: BankFile = {
@@ -216,6 +429,10 @@ export default function App() {
   }, [allKnobs, selectedPreset, knobValues, setStatusMsg, t]);
 
   const handleImport = useCallback(async () => {
+    if (presetBank === 'virtual') {
+      await handleImportVirtualPresets();
+      return;
+    }
     if (!midiRef.current) return;
     setImporting(true);
     try {
@@ -230,7 +447,6 @@ export default function App() {
         const settings = knobValuesToSettings(file.knobs);
         await midiRef.current.saveActivePresetToSlot(target, settings);
         setAllKnobs(prev => ({ ...prev, [target]: file.knobs }));
-        // Apply to DSP
         await midiRef.current.applySettingsToDsp(settings);
         setStatusMsg(t('status.importedPreset', { name: target }), 'success');
       } else if (data.format === 'cubebabybank') {
@@ -254,43 +470,53 @@ export default function App() {
     } finally {
       setImporting(false);
     }
-  }, [setStatusMsg, t]);
+  }, [presetBank, setStatusMsg, t, handleImportVirtualPresets]);
 
-  const pushUndo = useCallback((preset: PresetName) => {
+  const pushUndo = useCallback((key: string) => {
     setUndoStack(prev => {
-      const stack = prev[preset] || [];
-      return { ...prev, [preset]: [...stack.slice(-(MAX_UNDO_DEPTH - 1)), knobValues] };
+      const stack = prev[key] || [];
+      return { ...prev, [key]: [...stack.slice(-(MAX_UNDO_DEPTH - 1)), knobValues] };
     });
-    setRedoStack(prev => ({ ...prev, [preset]: [] }));
+    setRedoStack(prev => ({ ...prev, [key]: [] }));
   }, [knobValues]);
 
   const handleRevert = useCallback(() => {
-    const saved = allKnobs[selectedPreset];
-    if (saved) {
-      pushUndo(selectedPreset);
-      setKnobValues(saved);
+    if (savedKnobs) {
+      pushUndo(currentUndoKey);
+      setKnobValues(savedKnobs);
       setStatusMsg(t('status.reverted', { name: selectedPreset }), 'info');
       if (midiRef.current) {
-        const settings = knobValuesToSettings(saved);
+        const settings = knobValuesToSettings(savedKnobs);
         midiRef.current.applySettingsToDsp(settings).catch(() => {});
       }
     }
-  }, [selectedPreset, allKnobs, pushUndo, setStatusMsg, t]);
+  }, [savedKnobs, pushUndo, currentUndoKey, setStatusMsg, t, selectedPreset]);
 
   const handleFactoryReset = useCallback(async () => {
-    pushUndo(selectedPreset);
+    pushUndo(currentUndoKey);
     setKnobValues(FACTORY_DEFAULT_KNOBS);
-    setAllKnobs(prev => ({ ...prev, [selectedPreset]: FACTORY_DEFAULT_KNOBS }));
-    if (midiRef.current) {
-      try {
-        const settings = knobValuesToSettings(FACTORY_DEFAULT_KNOBS);
-        await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
-        setStatusMsg(t('status.resetToDefaults', { name: selectedPreset }), 'success');
-      } catch {
-        setStatusMsg(t('status.saveFailed', { message: 'MIDI write failed' }), 'error');
+    if (presetBank === 'virtual') {
+      if (selectedVirtualPresetId) {
+        setVirtualPresets(prev => prev.map(p =>
+          p.id === selectedVirtualPresetId
+            ? { ...p, knobs: FACTORY_DEFAULT_KNOBS, updated: new Date().toISOString() }
+            : p
+        ));
+      }
+      setStatusMsg(t('status.resetToDefaults', { name: 'virtual' }), 'success');
+    } else {
+      setAllKnobs(prev => ({ ...prev, [selectedPreset]: FACTORY_DEFAULT_KNOBS }));
+      if (midiRef.current) {
+        try {
+          const settings = knobValuesToSettings(FACTORY_DEFAULT_KNOBS);
+          await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
+          setStatusMsg(t('status.resetToDefaults', { name: selectedPreset }), 'success');
+        } catch {
+          setStatusMsg(t('status.saveFailed', { message: 'MIDI write failed' }), 'error');
+        }
       }
     }
-  }, [selectedPreset, pushUndo, setStatusMsg, t]);
+  }, [pushUndo, currentUndoKey, presetBank, selectedVirtualPresetId, selectedPreset, setStatusMsg, t]);
 
   const handleRefreshAll = useCallback(async () => {
     if (!midiRef.current) return;
@@ -328,7 +554,6 @@ export default function App() {
         log(`Slot ${slot}: [${s8}] "${ascii}"`);
       } catch (e: any) { log(`Slot ${slot}: error ${e.message}`); }
     }
-    // Read 8192 bytes from slot 0 start
     try {
       log('--- Reading 8192 bytes from 0x00069000 ---');
       const big = await baby.readIRFromRom(0, 8192);
@@ -338,7 +563,6 @@ export default function App() {
         if (/[A-Za-z]{3,}/.test(ascii)) log(`  @${off}: "${ascii.trim()}"`);
       }
     } catch (e: any) { log(`8192 read error: ${e.message}`); }
-    // Scan for cabinet names
     log('--- Scanning for metadata ---');
     for (const addr of [0x00068000, 0x00068800, 0x00069000, 0x00069800, 0x0006A000, 0x0006A800]) {
       try {
@@ -370,29 +594,27 @@ export default function App() {
 
   const handleKnobChangeEnd = useCallback((name: string, value: number) => {
     if (!midiRef.current) return;
-    pushUndo(selectedPreset);
+    pushUndo(currentUndoKey);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       if (!midiRef.current) return;
       try {
         await midiRef.current.writeSingleKnob(name, value);
-      } catch {
-        // Write may fail if pedal isn't in the right mode
-      }
+      } catch {}
     }, 50);
-  }, [selectedPreset, pushUndo]);
+  }, [currentUndoKey, pushUndo]);
 
   const handleUndo = useCallback(() => {
-    const stack = undoStack[selectedPreset] || [];
+    const stack = undoStack[currentUndoKey] || [];
     if (stack.length === 0) return;
     const prev = stack[stack.length - 1];
     setUndoStack(prevStack => {
-      const s = prevStack[selectedPreset] || [];
-      return { ...prevStack, [selectedPreset]: s.slice(0, -1) };
+      const s = prevStack[currentUndoKey] || [];
+      return { ...prevStack, [currentUndoKey]: s.slice(0, -1) };
     });
     setRedoStack(prevStack => ({
       ...prevStack,
-      [selectedPreset]: [...(prevStack[selectedPreset] || []), knobValues],
+      [currentUndoKey]: [...(prevStack[currentUndoKey] || []), knobValues],
     }));
     setKnobValues(prev);
     if (midiRef.current) {
@@ -402,19 +624,19 @@ export default function App() {
         midiRef.current.writeSingleKnob(param, val).catch(() => {});
       }
     }
-  }, [selectedPreset, undoStack, knobValues]);
+  }, [currentUndoKey, undoStack, knobValues]);
 
   const handleRedo = useCallback(() => {
-    const stack = redoStack[selectedPreset] || [];
+    const stack = redoStack[currentUndoKey] || [];
     if (stack.length === 0) return;
     const next = stack[stack.length - 1];
     setRedoStack(prevStack => {
-      const s = prevStack[selectedPreset] || [];
-      return { ...prevStack, [selectedPreset]: s.slice(0, -1) };
+      const s = prevStack[currentUndoKey] || [];
+      return { ...prevStack, [currentUndoKey]: s.slice(0, -1) };
     });
     setUndoStack(prevStack => ({
       ...prevStack,
-      [selectedPreset]: [...(prevStack[selectedPreset] || []), knobValues],
+      [currentUndoKey]: [...(prevStack[currentUndoKey] || []), knobValues],
     }));
     setKnobValues(next);
     if (midiRef.current) {
@@ -424,7 +646,7 @@ export default function App() {
         midiRef.current.writeSingleKnob(param, val).catch(() => {});
       }
     }
-  }, [selectedPreset, redoStack, knobValues]);
+  }, [currentUndoKey, redoStack, knobValues]);
 
   const handleFootswitch = useCallback(async (section: 'A' | 'B' | 'C') => {
     if (!midiRef.current) return;
@@ -484,16 +706,12 @@ export default function App() {
     if (!midiRef.current || !irPreprocessed) return;
     const slot = irSlot;
     const name = irName.trim() || `Custom IR ${slot + 1}`;
-    // Pad 512-sample IR to 1024 samples (4096 bytes) for ROM storage
     const romBytes = padIrToRomBytes(irPreprocessed);
     const totalChunks = Math.ceil(romBytes.length / 128);
     setIrProgress({ current: 0, total: 100 });
 
     try {
-      // 1. Save to localStorage first (for playback without pedal reads)
       saveIrData(slot, irPreprocessed);
-
-      // 2. Erase ROM sector
       setIrStatus('erasing');
       setStatusMsg(`Erasing ROM slot ${slot}...`);
       await midiRef.current.eraseIRRomSector(slot);
@@ -501,7 +719,6 @@ export default function App() {
       log(`ROM slot ${slot} erased`);
       setIrProgress({ current: 10, total: 100 });
 
-      // 3. Write 4096 bytes to ROM (32 chunks of 128)
       setIrStatus('writing');
       for (let i = 0; i < totalChunks; i++) {
         const offset = i * 128;
@@ -518,7 +735,6 @@ export default function App() {
       }
       log(`ROM slot ${slot}: ${totalChunks} chunks written (${romBytes.length} bytes)`);
 
-      // 4. Verify (read first 8 bytes)
       setIrStatus('verifying');
       setIrProgress({ current: 90, total: 100 });
       setStatusMsg('Verifying...');
@@ -534,7 +750,6 @@ export default function App() {
         log(`ROM verified: first sample ${actualFirst.toFixed(4)}`);
       }
 
-      // 5. Save name
       const updated = { ...irNames, [slot]: name };
       saveIrNames(updated);
 
@@ -567,7 +782,6 @@ export default function App() {
       if (!f32) {
         setStatusMsg(`Reading ROM slot ${slot} (4096 bytes)...`);
         const data = await midiRef.current.readIRFromRom(slot, IR_ROM_SLOT_SIZE);
-        // Take first 512 samples (our IR), discard the zero-padded tail
         f32 = new Float32Array(data.buffer, 0, 512);
         saveIrData(slot, f32);
       }
@@ -603,7 +817,6 @@ export default function App() {
     }
   }, [midiRef, irNames, irDistance, saveIrData, loadIrData, setStatusMsg, setActiveCustomSlot, setKnobValues]);
 
-  // Keyboard shortcuts (placed after all handlers to avoid TDZ)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const ctrlOrCmd = e.ctrlKey || e.metaKey;
@@ -616,9 +829,11 @@ export default function App() {
         return;
       }
       if (connected && !connecting) {
-        if (e.key === '1') { handleSelectPreset('A'); return; }
-        if (e.key === '2') { handleSelectPreset('B'); return; }
-        if (e.key === '3') { handleSelectPreset('C'); return; }
+        if (presetBank === 'hardware') {
+          if (e.key === '1') { handleSelectPreset('A'); return; }
+          if (e.key === '2') { handleSelectPreset('B'); return; }
+          if (e.key === '3') { handleSelectPreset('C'); return; }
+        }
         if (ctrlOrCmd && e.key === 's') { e.preventDefault(); handleSave(); return; }
         if (ctrlOrCmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
         if (ctrlOrCmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); handleRedo(); return; }
@@ -629,7 +844,7 @@ export default function App() {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [connected, connecting, handleSelectPreset, handleSave, handleUndo, handleRedo, handleExportPreset, handleImport]);
+  }, [connected, connecting, presetBank, handleSelectPreset, handleSave, handleUndo, handleRedo, handleExportPreset, handleImport]);
 
   useEffect(() => {
     return () => {
@@ -639,12 +854,25 @@ export default function App() {
 
   return (
     <div className="app">
-      <AppHeader connected={connected} connecting={connecting} mode={mode} onConnect={handleConnect} onDisconnect={handleDisconnect} />
+      <AppHeader connected={connected} connecting={connecting} mode={mode} presetBank={presetBank} onConnect={handleConnect} onDisconnect={handleDisconnect} onBankChange={handleBankChange} />
 
       {connected && connecting && <SkeletonLoader />}
       {connected && !connecting && (
         <>
-          <PresetBar selectedPreset={selectedPreset} mode={mode} loading={loading} onSelectPreset={handleSelectPreset} onModeChange={setMode} />
+          {presetBank === 'hardware' ? (
+            <PresetBar selectedPreset={selectedPreset} mode={mode} loading={loading} onSelectPreset={handleSelectPreset} onModeChange={setMode} />
+          ) : (
+            <VirtualPresetBar
+              virtualPresets={virtualPresets}
+              selectedVirtualPresetId={selectedVirtualPresetId}
+              mode={mode}
+              onSelectPreset={handleSelectVirtualPreset}
+              onAddPreset={handleAddVirtualPreset}
+              onDeletePreset={handleDeleteVirtualPreset}
+              onRenamePreset={handleRenameVirtualPreset}
+              onModeChange={setMode}
+            />
+          )}
 
           <div className="pedal-container">
             <Pedal
@@ -680,9 +908,9 @@ export default function App() {
             saving={saving}
             loading={loading}
             importing={importing}
-            undoCount={undoStack[selectedPreset]?.length || 0}
-            redoCount={redoStack[selectedPreset]?.length || 0}
-            selectedPreset={selectedPreset}
+            undoCount={undoStack[currentUndoKey]?.length || 0}
+            redoCount={redoStack[currentUndoKey]?.length || 0}
+            presetBank={presetBank}
             handlers={{
               onSave: handleSave,
               onRevert: handleRevert,

@@ -105,6 +105,41 @@ body {
   margin-left: 26px;
 }
 
+.app-header-center {
+  display: flex;
+  align-items: center;
+}
+
+.bank-toggle {
+  display: flex;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.bank-btn {
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.bank-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.bank-btn:not(.active):hover {
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.03);
+}
+
 .app-header-right {
   display: flex;
   align-items: center;
@@ -375,6 +410,74 @@ body {
   font-size: 15px;
   font-weight: 800;
   color: var(--preset-color, var(--text-primary));
+}
+
+/* ── Virtual Preset Bar ── */
+.virtual-preset-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.virtual-preset-select {
+  flex: 1;
+  max-width: 240px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23686880'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.virtual-preset-select:hover {
+  border-color: var(--text-muted);
+}
+
+.virtual-preset-select:focus {
+  border-color: var(--accent);
+}
+
+.virtual-preset-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.virtual-preset-actions .btn-xs {
+  padding: 2px 6px;
+  font-size: 10px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.virtual-preset-count {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.vp-rename-input {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  width: 120px;
+  outline: none;
 }
 
 /* ── Pedal Container ── */

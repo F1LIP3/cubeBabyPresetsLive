@@ -1,14 +1,17 @@
 import { useTranslation } from 'react-i18next';
+import type { PresetBank } from '../types';
 
 interface AppHeaderProps {
   connected: boolean;
   connecting: boolean;
   mode: 'live' | 'preset';
+  presetBank: PresetBank;
   onConnect: () => void;
   onDisconnect: () => void;
+  onBankChange: (bank: PresetBank) => void;
 }
 
-export function AppHeader({ connected, connecting, mode, onConnect, onDisconnect }: AppHeaderProps) {
+export function AppHeader({ connected, connecting, mode, presetBank, onConnect, onDisconnect, onBankChange }: AppHeaderProps) {
   const { t } = useTranslation();
 
   return (
@@ -20,6 +23,22 @@ export function AppHeader({ connected, connecting, mode, onConnect, onDisconnect
           <span className={`app-badge ${mode}`}>{mode.toUpperCase()}</span>
         </div>
         <div className="app-header-sub">{t('app.editor')}</div>
+      </div>
+      <div className="app-header-center">
+        <div className="bank-toggle">
+          <button
+            className={`bank-btn ${presetBank === 'hardware' ? 'active' : ''}`}
+            onClick={() => onBankChange('hardware')}
+          >
+            HW
+          </button>
+          <button
+            className={`bank-btn ${presetBank === 'virtual' ? 'active' : ''}`}
+            onClick={() => onBankChange('virtual')}
+          >
+            VIRT
+          </button>
+        </div>
       </div>
       <div className="app-header-right">
         <div className="status-indicator-mini">
