@@ -8,7 +8,7 @@ export function computeKnobValues(
 ): KnobValues {
   let mod = 7;
   if (pedalStates.chorus) mod = 6 - Math.max(0, Math.min(6, pedalParams.chorus.level));
-  else if (pedalStates.phaser) mod = 9 + (6 - Math.max(0, Math.min(6, pedalParams.phaser.level)));
+  else if (pedalStates.phaser) mod = 9 + Math.max(0, Math.min(6, pedalParams.phaser.level));
   return {
     type: pedalStates.amp ? pedalParams.amp.type : 0,
     gain: pedalStates.amp ? pedalParams.amp.gain : 0,
@@ -31,7 +31,7 @@ function extractParams(knobs: KnobValues): PedalParameters {
   const phaserOn = knobs.mod >= 9;
   return {
     amp: { type: knobs.type, gain: knobs.gain, tone: knobs.tone },
-    chorus: { level: chorusOn ? knobs.mod : 0 },
+    chorus: { level: chorusOn ? 6 - knobs.mod : 0 },
     phaser: { level: phaserOn ? knobs.mod - 9 : 0 },
     delay: { time: knobs.time, fb: knobs.fb, mix: knobs.mix },
     reverb: { reverb: knobs.reverb },

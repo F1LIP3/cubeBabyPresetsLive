@@ -149,7 +149,7 @@ export default function App() {
       case 'phaser': {
         let mod = 7;
         if (newStates.chorus) mod = 6 - Math.max(0, Math.min(6, adv.pedalParams.chorus.level));
-        else if (newStates.phaser) mod = 9 + (6 - Math.max(0, Math.min(6, adv.pedalParams.phaser.level)));
+        else if (newStates.phaser) mod = 9 + Math.max(0, Math.min(6, adv.pedalParams.phaser.level));
         mc.writeSingleKnob('mod', mod).catch(() => {});
         break;
       }
@@ -187,7 +187,7 @@ export default function App() {
         mc.writeSingleKnob('mod', 6 - Math.max(0, Math.min(6, value))).catch(() => {});
         break;
       case 'phaser':
-        mc.writeSingleKnob('mod', 9 + (6 - Math.max(0, Math.min(6, value)))).catch(() => {});
+        mc.writeSingleKnob('mod', 9 + Math.max(0, Math.min(6, value))).catch(() => {});
         break;
       case 'delay':
         mc.writeSingleKnob(param, value).catch(() => {});
