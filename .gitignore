@@ -26,3 +26,5 @@ temp-manifest.txt
 .gradle/
 android/META-INF/
 android/gradle-wrapper-*.properties
+dist_electron/
+todo.md
