@@ -65,8 +65,8 @@ jobs:
       - name: Build renderer (shared web assets)
         run: npx vite build
 
-      - name: Copy web assets to Android
-        run: npx cap copy android
+      - name: Sync Capacitor plugins and web assets to Android
+        run: npx cap sync android
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
