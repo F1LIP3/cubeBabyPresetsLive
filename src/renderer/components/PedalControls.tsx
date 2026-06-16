@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Slider } from './Slider';
 import type { PedalId, PedalParameters } from '../types';
 
@@ -28,15 +29,32 @@ const IR_CABS = [
 ];
 
 export function PedalControls({ pedalParams, pedalStates, onPedalParamChange, onPedalParamChangeEnd, disabled = false }: PedalControlsProps) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const toggleCollapse = (id: string) => {
+    setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const card = (id: PedalId, icon: string, label: string, body: React.ReactNode) => {
+    const isBypassed = id !== 'volume' && !pedalStates[id];
+    const isCollapsed = collapsed[id];
+    return (
+      <div className={`pedal-card ${isBypassed ? 'pedal-card-bypassed' : ''} ${isCollapsed ? 'pedal-card-collapsed' : ''}`}>
+        <button className="pedal-card-header" onClick={() => toggleCollapse(id)}>
+          <span className="pedal-card-collapse-icon">{isCollapsed ? '▸' : '▾'}</span>
+          <span className="pedal-card-icon">{icon}</span>
+          {label} {isBypassed && <span className="pedal-controls-bypassed">(OFF)</span>}
+        </button>
+        <div className="pedal-card-body">{body}</div>
+      </div>
+    );
+  };
+
   return (
     <div className="pedal">
       <div className="pedal-controls-grid">
-        <div className={`pedal-card ${!pedalStates.amp ? 'pedal-card-bypassed' : ''}`}>
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">⚡</span>
-            AMP {!pedalStates.amp && <span className="pedal-controls-bypassed">(OFF)</span>}
-          </div>
-          <div className="pedal-card-body">
+        {card('amp', '⚡', 'AMP', (
+          <>
             <div className="pedal-row">
               <div className="pedal-label">TYPE</div>
               <select
@@ -74,53 +92,37 @@ export function PedalControls({ pedalParams, pedalStates, onPedalParamChange, on
               labelLeft="DARK"
               labelRight="BRIGHT"
             />
-          </div>
-        </div>
+          </>
+        ))}
 
-        <div className={`pedal-card ${!pedalStates.chorus ? 'pedal-card-bypassed' : ''}`}>
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">〰️</span>
-            CHORUS {!pedalStates.chorus && <span className="pedal-controls-bypassed">(OFF)</span>}
-          </div>
-          <div className="pedal-card-body">
-            <Slider
-              value={pedalParams.chorus.level}
-              min={0}
-              max={6}
-              onChange={(v) => onPedalParamChange('chorus', 'level', v)}
-              onChangeEnd={(v) => { onPedalParamChange('chorus', 'level', v); onPedalParamChangeEnd('chorus', 'level', v); }}
-              disabled={disabled || !pedalStates.chorus}
-              labelLeft="MIN"
-              labelRight="MAX"
-            />
-          </div>
-        </div>
+        {card('chorus', '〰️', 'CHORUS', (
+          <Slider
+            value={pedalParams.chorus.level}
+            min={0}
+            max={6}
+            onChange={(v) => onPedalParamChange('chorus', 'level', v)}
+            onChangeEnd={(v) => { onPedalParamChange('chorus', 'level', v); onPedalParamChangeEnd('chorus', 'level', v); }}
+            disabled={disabled || !pedalStates.chorus}
+            labelLeft="MIN"
+            labelRight="MAX"
+          />
+        ))}
 
-        <div className={`pedal-card ${!pedalStates.phaser ? 'pedal-card-bypassed' : ''}`}>
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">🌀</span>
-            PHASER {!pedalStates.phaser && <span className="pedal-controls-bypassed">(OFF)</span>}
-          </div>
-          <div className="pedal-card-body">
-            <Slider
-              value={pedalParams.phaser.level}
-              min={0}
-              max={6}
-              onChange={(v) => onPedalParamChange('phaser', 'level', v)}
-              onChangeEnd={(v) => { onPedalParamChange('phaser', 'level', v); onPedalParamChangeEnd('phaser', 'level', v); }}
-              disabled={disabled || !pedalStates.phaser}
-              labelLeft="MIN"
-              labelRight="MAX"
-            />
-          </div>
-        </div>
+        {card('phaser', '🌀', 'PHASER', (
+          <Slider
+            value={pedalParams.phaser.level}
+            min={0}
+            max={6}
+            onChange={(v) => onPedalParamChange('phaser', 'level', v)}
+            onChangeEnd={(v) => { onPedalParamChange('phaser', 'level', v); onPedalParamChangeEnd('phaser', 'level', v); }}
+            disabled={disabled || !pedalStates.phaser}
+            labelLeft="MIN"
+            labelRight="MAX"
+          />
+        ))}
 
-        <div className={`pedal-card ${!pedalStates.delay ? 'pedal-card-bypassed' : ''}`}>
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">⏱️</span>
-            DELAY {!pedalStates.delay && <span className="pedal-controls-bypassed">(OFF)</span>}
-          </div>
-          <div className="pedal-card-body">
+        {card('delay', '⏱️', 'DELAY', (
+          <>
             <Slider
               value={pedalParams.delay.time}
               min={0}
@@ -151,72 +153,54 @@ export function PedalControls({ pedalParams, pedalStates, onPedalParamChange, on
               labelLeft="DRY"
               labelRight="WET"
             />
-          </div>
-        </div>
+          </>
+        ))}
 
-        <div className={`pedal-card ${!pedalStates.reverb ? 'pedal-card-bypassed' : ''}`}>
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">🌊</span>
-            REVERB {!pedalStates.reverb && <span className="pedal-controls-bypassed">(OFF)</span>}
-          </div>
-          <div className="pedal-card-body">
-            <Slider
-              value={pedalParams.reverb.reverb}
-              min={0}
-              max={15}
-              onChange={(v) => onPedalParamChange('reverb', 'reverb', v)}
-              onChangeEnd={(v) => { onPedalParamChange('reverb', 'reverb', v); onPedalParamChangeEnd('reverb', 'reverb', v); }}
-              disabled={disabled || !pedalStates.reverb}
-              labelLeft="MIN"
-              labelRight="+REVERB"
-            />
-          </div>
-        </div>
+        {card('reverb', '🌊', 'REVERB', (
+          <Slider
+            value={pedalParams.reverb.reverb}
+            min={0}
+            max={15}
+            onChange={(v) => onPedalParamChange('reverb', 'reverb', v)}
+            onChangeEnd={(v) => { onPedalParamChange('reverb', 'reverb', v); onPedalParamChangeEnd('reverb', 'reverb', v); }}
+            disabled={disabled || !pedalStates.reverb}
+            labelLeft="MIN"
+            labelRight="+REVERB"
+          />
+        ))}
 
-        <div className={`pedal-card ${!pedalStates.ircab ? 'pedal-card-bypassed' : ''}`}>
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">📦</span>
-            IR CAB {!pedalStates.ircab && <span className="pedal-controls-bypassed">(OFF)</span>}
+        {card('ircab', '📦', 'IR CAB', (
+          <div className="pedal-row">
+            <div className="pedal-label">CAB</div>
+            <select
+              className="pedal-select"
+              value={pedalParams.ircab.slot}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                onPedalParamChange('ircab', 'slot', v);
+                onPedalParamChangeEnd('ircab', 'slot', v);
+              }}
+              disabled={disabled || !pedalStates.ircab}
+            >
+              {IR_CABS.map((name, i) => (
+                <option key={i} value={i}>{name}</option>
+              ))}
+            </select>
           </div>
-          <div className="pedal-card-body">
-            <div className="pedal-row">
-              <div className="pedal-label">CAB</div>
-              <select
-                className="pedal-select"
-                value={pedalParams.ircab.slot}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  onPedalParamChange('ircab', 'slot', v);
-                  onPedalParamChangeEnd('ircab', 'slot', v);
-                }}
-                disabled={disabled || !pedalStates.ircab}
-              >
-                {IR_CABS.map((name, i) => (
-                  <option key={i} value={i}>{name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+        ))}
 
-        <div className="pedal-card">
-          <div className="pedal-card-header">
-            <span className="pedal-card-icon">🔊</span>
-            VOLUME
-          </div>
-          <div className="pedal-card-body">
-            <Slider
-              value={pedalParams.volume.level}
-              min={0}
-              max={127}
-              onChange={(v) => onPedalParamChange('volume', 'level', v)}
-              onChangeEnd={(v) => { onPedalParamChange('volume', 'level', v); onPedalParamChangeEnd('volume', 'level', v); }}
-              disabled={disabled}
-              labelLeft="MIN"
-              labelRight="MAX"
-            />
-          </div>
-        </div>
+        {card('volume', '🔊', 'VOLUME', (
+          <Slider
+            value={pedalParams.volume.level}
+            min={0}
+            max={127}
+            onChange={(v) => onPedalParamChange('volume', 'level', v)}
+            onChangeEnd={(v) => { onPedalParamChange('volume', 'level', v); onPedalParamChangeEnd('volume', 'level', v); }}
+            disabled={disabled}
+            labelLeft="MIN"
+            labelRight="MAX"
+          />
+        ))}
       </div>
     </div>
   );

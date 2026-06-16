@@ -31,7 +31,12 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .app {
@@ -505,7 +510,16 @@ body {
 .pedal-rack-pedals {
   display: flex;
   gap: 8px;
-  justify-content: center;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  padding: 2px 4px;
+}
+
+.pedal-rack-pedals::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── Pedal Visual ── */
@@ -523,6 +537,8 @@ body {
   min-width: 72px;
   max-width: 72px;
   user-select: none;
+  scroll-snap-align: start;
+  flex-shrink: 0;
 }
 
 .pedal-visual.always-on {
@@ -757,7 +773,52 @@ body {
   text-transform: uppercase;
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.02);
+  border: none;
   border-bottom: 1px solid var(--border);
+  width: 100%;
+  cursor: pointer;
+  transition: background var(--transition);
+  font-family: inherit;
+  text-align: left;
+}
+
+.pedal-card-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pedal-card-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.pedal-card-collapse-icon {
+  font-size: 8px;
+  color: var(--text-muted);
+  width: 10px;
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+
+.pedal-card-collapsed .pedal-card-body {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .pedal-card-collapse-icon {
+    display: none;
+  }
+
+  .pedal-card-collapsed .pedal-card-body {
+    display: block;
+  }
+
+  .pedal-card-header {
+    cursor: default;
+  }
+
+  .pedal-card-header:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
 }
 
 .pedal-card-icon {
@@ -1028,14 +1089,89 @@ body {
 /* ── Toolbar ── */
 .toolbar {
   display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
 }
 
-.toolbar .btn {
+.toolbar-primary {
+  display: flex;
+  gap: 6px;
+}
+
+.toolbar-primary .btn {
   flex: 1;
-  padding: 10px 8px;
-  font-size: 11px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--accent);
+  color: #fff;
+}
+
+.toolbar-primary .btn:hover:not(:disabled) {
+  background: #8c6cff;
+}
+
+.toolbar-primary .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-primary .btn-revert {
+  flex: 0 0 auto;
+  width: 42px;
+  padding: 10px 0;
+  font-size: 16px;
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--error);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.toolbar-primary .btn-revert:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.25);
+}
+
+.toolbar-secondary {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.toolbar-secondary .btn {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-light);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.toolbar-secondary .btn:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.toolbar-secondary .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-secondary .btn-undo,
+.toolbar-secondary .btn-redo,
+.toolbar-secondary .btn-refresh,
+.toolbar-secondary .btn-danger {
+  width: 32px;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 12px;
 }
 
 .btn-dirty {
@@ -1048,36 +1184,59 @@ body {
   50% { box-shadow: 0 0 14px rgba(124, 92, 252, 0.6); }
 }
 
-.btn-undo, .btn-redo {
-  flex: 0 0 auto;
-  width: 36px;
-  padding: 10px 0;
-  text-align: center;
-  font-size: 14px;
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-light);
+@media (min-width: 601px) {
+  .toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .toolbar-primary .btn {
+    padding: 7px 14px;
+    font-size: 12px;
+    flex: 0 1 auto;
+  }
+
+  .toolbar-primary .btn-revert {
+    width: 36px;
+    padding: 7px 0;
+  }
+
+  .toolbar-secondary .btn {
+    padding: 5px 12px;
+    font-size: 11px;
+  }
+
+  .toolbar-secondary .btn-undo,
+  .toolbar-secondary .btn-redo,
+  .toolbar-secondary .btn-refresh,
+  .toolbar-secondary .btn-danger {
+    width: 28px;
+    padding: 5px 0;
+  }
 }
 
-.btn-undo:hover:not(:disabled), .btn-redo:hover:not(:disabled) {
-  border-color: var(--text-muted);
-}
+@media (max-width: 600px) {
+  .toolbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 100;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border);
+    margin: 0 -10px;
+    padding: 6px 10px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    margin-bottom: 0;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
+  }
 
-.btn-revert {
-  flex: 0 0 auto;
-  width: 36px;
-  padding: 10px 0;
-  text-align: center;
-  font-size: 14px;
-  background: rgba(231, 76, 60, 0.1);
-  color: var(--error);
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  animation: dirtyPulse 2s ease-in-out infinite;
-}
+  .toolbar-primary .btn {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
 
-.btn-revert:hover {
-  border-color: var(--error);
-  background: rgba(231, 76, 60, 0.2);
+  .toolbar-secondary {
+    justify-content: center;
+  }
 }
 
 /* ── Status Message ── */
@@ -1459,6 +1618,129 @@ body {
 }
 
 /* ── Responsive ── */
+/* When rack fits without overflow, center it */
+@media (min-width: 600px) {
+  .pedal-rack-pedals {
+    justify-content: center;
+    overflow-x: visible;
+  }
+}
+
+/* ── Touch-friendly sizing ── */
+@media (pointer: coarse) {
+  .pedal-visual-stomp {
+    width: 48px;
+    height: 48px;
+    font-size: 11px;
+  }
+
+  .pedal-visual {
+    min-width: 78px;
+    max-width: 78px;
+    padding: 10px 12px;
+  }
+
+  .preset-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .preset-btn-letter {
+    font-size: 18px;
+  }
+
+  .slider-thumb {
+    width: 36px;
+    height: 36px;
+  }
+
+  .slider-thumb::after {
+    top: -14px;
+    left: -14px;
+    right: -14px;
+    bottom: -14px;
+  }
+
+  .slider-track {
+    height: 32px;
+  }
+
+  .pedal-footswitch {
+    width: 72px;
+    height: 72px;
+  }
+
+  .toolbar .btn {
+    padding: 14px 8px;
+    font-size: 11px;
+  }
+
+  .virtual-preset-select {
+    padding: 8px 24px 8px 8px;
+    font-size: 12px;
+  }
+
+  .pedal-select {
+    padding: 8px 24px 8px 8px;
+  }
+}
+
+/* ── Extra-compact (very small phones) ── */
+@media (max-width: 480px) {
+  .app {
+    padding: 8px;
+  }
+
+  .app-logo h1 {
+    font-size: 14px;
+  }
+
+  .app-logo-subtitle {
+    display: none;
+  }
+
+  .app-header-sub {
+    display: none;
+  }
+
+  .app-header {
+    gap: 4px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+
+  .app-header-right {
+    gap: 6px;
+  }
+
+  .virtual-preset-select {
+    font-size: 10px;
+    max-width: 160px;
+  }
+
+  .mode-btn {
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  .pedal-card-header {
+    padding: 5px 8px;
+    font-size: 9px;
+  }
+
+  .pedal-card-body {
+    padding: 6px 8px 8px;
+  }
+}
+
+/* ── Tablet and up ── */
+@media (min-width: 901px) {
+  .app {
+    max-width: 900px;
+    padding: 24px 32px;
+  }
+}
+
 @media (max-width: 600px) {
   .app {
     padding: 10px;
@@ -1525,23 +1807,6 @@ body {
   }
 
   .preset-btn-letter {
-    font-size: 16px;
-  }
-
-  .toolbar {
-    flex-wrap: wrap;
-  }
-
-  .toolbar .btn {
-    flex: 1;
-    min-width: 50px;
-    padding: 12px 4px;
-    font-size: 10px;
-  }
-
-  .btn-undo, .btn-redo, .btn-revert {
-    width: 40px;
-    min-width: 40px;
     font-size: 16px;
   }
 

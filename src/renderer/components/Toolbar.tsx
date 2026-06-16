@@ -18,34 +18,32 @@ export function Toolbar({ isDirty, saving, loading, importing, undoCount, redoCo
 
   return (
     <div className="toolbar">
-      <button
-        className={`btn btn-primary btn-xs ${isDirty ? 'btn-dirty' : ''}`}
-        onClick={handlers.onSave}
-        disabled={saving || loading}
-        title={`${t('preset.save')} (Ctrl+S)`}
-      >
-        {saving ? t('preset.saving') : isDirty ? `${t('preset.save')}*` : t('preset.save')}
-      </button>
-      {isDirty && <button className="btn btn-xs btn-revert" onClick={handlers.onRevert} title={t('preset.revert')}>↩</button>}
-      <button className="btn btn-xs btn-undo" onClick={handlers.onUndo} disabled={undoCount === 0} title={`${t('preset.undo')} (Ctrl+Z)`}>↩</button>
-      <button className="btn btn-xs btn-redo" onClick={handlers.onRedo} disabled={redoCount === 0} title={`${t('preset.redo')} (Ctrl+Shift+Z)`}>↪</button>
-      <button className="btn btn-secondary btn-xs" onClick={handlers.onExportPreset} title={`${t('preset.export')} (Ctrl+E)`}>
-        {t('preset.export')}
-      </button>
-      {presetBank === 'hardware' && (
-        <button className="btn btn-secondary btn-xs" onClick={handlers.onExportBank} title={t('preset.bank')}>
-          {t('preset.bank')}
+      <div className="toolbar-primary">
+        <button
+          className={`btn btn-primary ${isDirty ? 'btn-dirty' : ''}`}
+          onClick={handlers.onSave}
+          disabled={saving || loading}
+          title={`${t('preset.save')} (Ctrl+S)`}
+        >
+          {saving ? t('preset.saving') : isDirty ? `${t('preset.save')}*` : t('preset.save')}
         </button>
-      )}
-      <button className="btn btn-secondary btn-xs" onClick={handlers.onImport} disabled={importing} title={`${t('preset.import')} (Ctrl+I)`}>
-        {importing ? t('preset.importing') : t('preset.import')}
-      </button>
-      {presetBank === 'hardware' && (
-        <button className="btn btn-secondary btn-xs" onClick={handlers.onRefreshAll} title={t('preset.refresh')}>
-          {t('preset.refresh')}
+        {isDirty && <button className="btn btn-revert" onClick={handlers.onRevert} title={t('preset.revert')}>↩</button>}
+      </div>
+      <div className="toolbar-secondary">
+        <button className="btn btn-undo" onClick={handlers.onUndo} disabled={undoCount === 0} title={`${t('preset.undo')} (Ctrl+Z)`}>↩</button>
+        <button className="btn btn-redo" onClick={handlers.onRedo} disabled={redoCount === 0} title={`${t('preset.redo')} (Ctrl+Shift+Z)`}>↪</button>
+        <button className="btn btn-export" onClick={handlers.onExportPreset} title={`${t('preset.export')} (Ctrl+E)`}>{t('preset.export')}</button>
+        {presetBank === 'hardware' && (
+          <button className="btn btn-export" onClick={handlers.onExportBank} title={t('preset.bank')}>{t('preset.bank')}</button>
+        )}
+        <button className="btn btn-import" onClick={handlers.onImport} disabled={importing} title={`${t('preset.import')} (Ctrl+I)`}>
+          {importing ? t('preset.importing') : t('preset.import')}
         </button>
-      )}
-      <button className="btn btn-xs btn-danger" onClick={handlers.onFactoryReset} title={t('preset.factoryReset')}>↺</button>
+        {presetBank === 'hardware' && (
+          <button className="btn btn-refresh" onClick={handlers.onRefreshAll} title={t('preset.refresh')}>↻</button>
+        )}
+        <button className="btn btn-danger" onClick={handlers.onFactoryReset} title={t('preset.factoryReset')}>↺</button>
+      </div>
     </div>
   );
 }
