@@ -33,7 +33,7 @@
         "max": 15
       },
       "mod": {
-        "description": "Modulation intensity (e.g., chorus, tremolo).",
+        "description": "Modulation intensity (chorus((+)0-6(-)), 7 off, phaser((-)8-15(+))).",
         "type": "integer",
         "min": 0,
         "max": 15

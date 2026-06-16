@@ -7,8 +7,8 @@ export function computeKnobValues(
   pedalParams: PedalParameters
 ): KnobValues {
   let mod = 7;
-  if (pedalStates.chorus) mod = Math.max(0, Math.min(6, pedalParams.chorus.level));
-  else if (pedalStates.phaser) mod = 9 + Math.max(0, Math.min(6, pedalParams.phaser.level));
+  if (pedalStates.chorus) mod = 6 - Math.max(0, Math.min(6, pedalParams.chorus.level));
+  else if (pedalStates.phaser) mod = 9 + (6 - Math.max(0, Math.min(6, pedalParams.phaser.level)));
   return {
     type: pedalStates.amp ? pedalParams.amp.type : 0,
     gain: pedalStates.amp ? pedalParams.amp.gain : 0,
@@ -20,8 +20,8 @@ export function computeKnobValues(
     reverb: pedalStates.reverb ? pedalParams.reverb.reverb : 0,
     ir_cab: pedalStates.ircab ? pedalParams.ircab.slot : 0,
     volume: pedalParams.volume.level,
-    irSection: true,
-    delaySection: true,
+    irSection: pedalStates.reverb || pedalStates.ircab,
+    delaySection: pedalStates.chorus || pedalStates.phaser || pedalStates.delay,
     toneSection: pedalStates.amp,
   };
 }

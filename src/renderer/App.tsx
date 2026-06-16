@@ -148,8 +148,8 @@ export default function App() {
       case 'chorus':
       case 'phaser': {
         let mod = 7;
-        if (newStates.chorus) mod = Math.max(0, Math.min(6, adv.pedalParams.chorus.level));
-        else if (newStates.phaser) mod = 9 + Math.max(0, Math.min(6, adv.pedalParams.phaser.level));
+        if (newStates.chorus) mod = 6 - Math.max(0, Math.min(6, adv.pedalParams.chorus.level));
+        else if (newStates.phaser) mod = 9 + (6 - Math.max(0, Math.min(6, adv.pedalParams.phaser.level)));
         mc.writeSingleKnob('mod', mod).catch(() => {});
         break;
       }
@@ -184,10 +184,10 @@ export default function App() {
         mc.writeSingleKnob(param, value).catch(() => {});
         break;
       case 'chorus':
-        mc.writeSingleKnob('mod', Math.max(0, Math.min(6, value))).catch(() => {});
+        mc.writeSingleKnob('mod', 6 - Math.max(0, Math.min(6, value))).catch(() => {});
         break;
       case 'phaser':
-        mc.writeSingleKnob('mod', 9 + Math.max(0, Math.min(6, value))).catch(() => {});
+        mc.writeSingleKnob('mod', 9 + (6 - Math.max(0, Math.min(6, value)))).catch(() => {});
         break;
       case 'delay':
         mc.writeSingleKnob(param, value).catch(() => {});
@@ -294,12 +294,18 @@ export default function App() {
     if (newMode === mode) return;
     if (newMode === 'advanced-live') {
       adv.resetFromKnobs(knobValues);
+      if (midiRef.current) {
+        const mc = midiRef.current;
+        mc.toggleSection('C', true).catch(() => {});
+        mc.toggleSection('B', true).catch(() => {});
+        mc.toggleSection('A', true).catch(() => {});
+      }
     }
     if (mode === 'advanced-live') {
       setKnobValues(adv.effectiveKnobValues);
     }
     setMode(newMode);
-  }, [mode, knobValues, adv]);
+  }, [mode, knobValues, adv, midiRef]);
 
   const handleSelectPreset = useCallback(async (preset: PresetName) => {
     setSelectedPreset(preset);
