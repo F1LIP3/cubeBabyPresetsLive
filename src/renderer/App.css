@@ -97,6 +97,12 @@ body {
   border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
+.app-badge.advanced-live {
+  background: rgba(124, 92, 252, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(124, 92, 252, 0.3);
+}
+
 .app-header-sub {
   font-size: 10px;
   color: var(--text-muted);
@@ -478,6 +484,201 @@ body {
   color: var(--text-primary);
   width: 120px;
   outline: none;
+}
+
+/* ── Pedal Rack ── */
+.pedal-rack {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.pedal-rack-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.pedal-rack-pedals {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ── Pedal Visual ── */
+.pedal-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  cursor: default;
+  transition: all var(--transition);
+  min-width: 72px;
+  max-width: 72px;
+  user-select: none;
+}
+
+.pedal-visual.always-on {
+  border-color: var(--border);
+  opacity: 0.85;
+}
+
+.pedal-visual.enabled:not(.always-on) {
+  border-color: var(--success);
+  background: linear-gradient(135deg, rgba(46, 204, 113, 0.08), rgba(46, 204, 113, 0.02));
+}
+
+.pedal-visual.enabled.always-on {
+  border-color: var(--accent);
+  background: rgba(124, 92, 252, 0.06);
+}
+
+.pedal-visual.disabled {
+  opacity: 0.45;
+}
+
+.pedal-visual-led {
+  display: flex;
+  justify-content: center;
+  height: 8px;
+}
+
+.pedal-visual-led-light {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: all var(--transition);
+}
+
+.pedal-visual-led-light.on {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success), 0 0 12px rgba(46, 204, 113, 0.3);
+}
+
+.pedal-visual-led-light.off {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+
+.pedal-visual-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.pedal-visual-label {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.pedal-visual-stomp {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border-light);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pedal-visual-stomp.on {
+  border-color: var(--success);
+  background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(46, 204, 113, 0.05));
+  color: var(--success);
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.2);
+}
+
+.pedal-visual-stomp.off {
+  color: var(--text-muted);
+}
+
+.pedal-visual-stomp:hover {
+  border-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pedal-visual-always {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+
+/* ── Pedal Controls Grid ── */
+.pedal-controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pedal-card-bypassed {
+  opacity: 0.5;
+}
+
+.pedal-card-bypassed .pedal-card-header {
+  color: var(--text-muted);
+}
+
+/* ── Pedal Controls Bypass Label ── */
+.pedal-controls-bypassed {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 6px;
+  opacity: 0.7;
+}
+
+.pedal-controls-mode-toggle {
+  display: flex;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.pedal-controls-mode-btn {
+  padding: 5px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.pedal-controls-mode-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pedal-controls-mode-btn:not(.active):hover {
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.03);
+}
+
+.pedal-controls-mode-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Pedal Container ── */
@@ -1285,6 +1486,10 @@ body {
   .pedal-select {
     font-size: 11px;
     padding: 8px 24px 8px 8px;
+  }
+
+  .pedal-controls-grid {
+    grid-template-columns: 1fr;
   }
 
   .pedal-card-body {

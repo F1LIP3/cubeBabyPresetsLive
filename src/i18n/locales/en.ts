@@ -11,6 +11,7 @@ export const en = {
   preset: {
     modePreset: 'PRESET',
     modeLive: 'LIVE',
+    modeAdvancedLive: 'ADV',
     save: 'Save',
     saving: 'Saving...',
     export: 'Export',

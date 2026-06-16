@@ -2,13 +2,14 @@ import { useTranslation } from 'react-i18next';
 import type { PresetName } from '../../protocol/types';
 import { PRESETS } from '../../protocol/types';
 import { PRESET_COLORS } from '../constants';
+import type { AppMode } from '../types';
 
 interface PresetBarProps {
   selectedPreset: PresetName;
-  mode: 'live' | 'preset';
+  mode: AppMode;
   loading: boolean;
   onSelectPreset: (preset: PresetName) => void;
-  onModeChange: (mode: 'live' | 'preset') => void;
+  onModeChange: (mode: AppMode) => void;
 }
 
 export function PresetBar({ selectedPreset, mode, loading, onSelectPreset, onModeChange }: PresetBarProps) {
@@ -23,7 +24,7 @@ export function PresetBar({ selectedPreset, mode, loading, onSelectPreset, onMod
             className={`preset-btn ${selectedPreset === p ? 'active' : ''}`}
             style={{ '--preset-color': PRESET_COLORS[p] } as React.CSSProperties}
             onClick={() => onSelectPreset(p)}
-            disabled={loading}
+            disabled={loading || mode === 'advanced-live'}
           >
             <span className="preset-btn-letter">{p}</span>
           </button>
@@ -41,6 +42,12 @@ export function PresetBar({ selectedPreset, mode, loading, onSelectPreset, onMod
           onClick={() => onModeChange('live')}
         >
           {t('preset.modeLive')}
+        </button>
+        <button
+          className={`mode-btn ${mode === 'advanced-live' ? 'active' : ''}`}
+          onClick={() => onModeChange('advanced-live')}
+        >
+          {t('preset.modeAdvancedLive')}
         </button>
       </div>
     </div>

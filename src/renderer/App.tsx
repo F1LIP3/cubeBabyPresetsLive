@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { CubeBabyMidi } from '../midi/cubeBabyMidi';
 import type { PresetName } from '../protocol/types';
 import { Pedal } from './components/Pedal';
+import { PedalRack } from './components/PedalRack';
+import { PedalControls } from './components/PedalControls';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { HelpModal } from './components/HelpModal';
 import { DebugPanel } from './components/DebugPanel';
@@ -16,13 +18,14 @@ import { VirtualPresetBar } from './components/VirtualPresetBar';
 import { useVirtualPresets } from './hooks/useVirtualPresets';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useIR } from './hooks/useIR';
+import { useAdvancedLiveMode } from './hooks/useAdvancedLiveMode';
 import { settingsToKnobValues, knobValuesToSettings } from '../protocol';
 import type { KnobValues } from '../protocol';
 import { getDirection } from '../i18n/i18n';
 import { listMidiDevices } from '../midi/midiService';
 import type { MidiDeviceInfo } from '../midi/midiService';
 import { cubeBabyModel, EMPTY_KNOBS, FACTORY_DEFAULT_KNOBS } from './constants';
-import type { PresetBank } from './types';
+import type { PresetBank, AppMode, PedalId } from './types';
 import type { PresetFile, BankFile } from './helpers';
 import { downloadJson, loadFile } from './helpers';
 
@@ -36,7 +39,7 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<PresetName>('A');
-  const [mode, setMode] = useState<'live' | 'preset'>('preset');
+  const [mode, setMode] = useState<AppMode>('preset');
   const [presetBank, setPresetBank] = useState<PresetBank>(() => {
     return (localStorage.getItem('presetBank') as PresetBank) || 'hardware';
   });
@@ -62,10 +65,6 @@ export default function App() {
     if (presetBank === 'virtual') return virt.current ? virt.current.knobs : EMPTY_KNOBS;
     return allKnobs[selectedPreset] || EMPTY_KNOBS;
   }, [presetBank, virt.current, allKnobs, selectedPreset]);
-
-  const isDirty = useMemo(() => {
-    return JSON.stringify(knobValues) !== JSON.stringify(savedKnobs);
-  }, [knobValues, savedKnobs]);
 
   // UI state
   const [status, setStatus] = useState('');
@@ -107,6 +106,104 @@ export default function App() {
   const currentUndoKey: string = presetBank === 'virtual' ? (virt.selectedId || '__none') : selectedPreset;
   const undoRedo = useUndoRedo(knobValues, currentUndoKey, midiRef, setKnobValues);
 
+  // Advanced Live Mode (SOLID: extracted to hook)
+  const adv = useAdvancedLiveMode(knobValues);
+
+  const isDirty = useMemo(() => {
+    const current = mode === 'advanced-live' ? adv.effectiveKnobValues : knobValues;
+    return JSON.stringify(current) !== JSON.stringify(savedKnobs);
+  }, [knobValues, savedKnobs, mode, adv.effectiveKnobValues]);
+
+  const handleTogglePedal = useCallback((id: PedalId) => {
+    if (!midiRef.current || mode !== 'advanced-live') return;
+    const oldOn = adv.pedalStates[id];
+    const newOn = !oldOn;
+    const newStates: Record<PedalId, boolean> = { ...adv.pedalStates, [id]: newOn };
+    if (id === 'chorus' && newOn) newStates.phaser = false;
+    if (id === 'phaser' && newOn) newStates.chorus = false;
+    adv.togglePedal(id);
+
+    const mc = midiRef.current;
+
+    // Toggle hardware section bypass when the combined state of its pedals changes
+    const modOn = newStates.chorus || newStates.phaser;
+    const wasModOn = adv.pedalStates.chorus || adv.pedalStates.phaser;
+    const wasDelayOn = adv.pedalStates.delay;
+    const wasSectionB = wasModOn || wasDelayOn;
+    const sectionBOn = modOn || newStates.delay;
+    if (wasSectionB !== sectionBOn) {
+      mc.toggleSection('B', sectionBOn).catch(() => {});
+    }
+
+    const irOn = newStates.reverb || newStates.ircab;
+    const wasIrOn = adv.pedalStates.reverb || adv.pedalStates.ircab;
+    if (wasIrOn !== irOn) {
+      mc.toggleSection('A', irOn).catch(() => {});
+    }
+
+    switch (id) {
+      case 'amp':
+        mc.toggleSection('C', newOn).catch(() => {});
+        break;
+      case 'chorus':
+      case 'phaser': {
+        let mod = 7;
+        if (newStates.chorus) mod = Math.max(0, Math.min(6, adv.pedalParams.chorus.level));
+        else if (newStates.phaser) mod = 9 + Math.max(0, Math.min(6, adv.pedalParams.phaser.level));
+        mc.writeSingleKnob('mod', mod).catch(() => {});
+        break;
+      }
+      case 'delay': {
+        const p = adv.pedalParams.delay;
+        mc.writeSingleKnob('time', newOn ? p.time : 0)
+          .then(() => mc.writeSingleKnob('fb', newOn ? p.fb : 0))
+          .then(() => mc.writeSingleKnob('mix', newOn ? p.mix : 0))
+          .catch(() => {});
+        break;
+      }
+      case 'reverb':
+        mc.writeSingleKnob('reverb', newOn ? adv.pedalParams.reverb.reverb : 0).catch(() => {});
+        break;
+      case 'ircab':
+        mc.writeSingleKnob('ir_cab', newOn ? adv.pedalParams.ircab.slot : 0).catch(() => {});
+        break;
+    }
+  }, [adv, midiRef, mode]);
+
+  const handlePedalParamChangeEnd = useCallback((
+    pedal: string,
+    param: string,
+    value: number
+  ) => {
+    if (!midiRef.current || mode !== 'advanced-live') return;
+    adv.setPedalParam(pedal as any, param as any, value);
+    const mc = midiRef.current;
+    const p = pedal as PedalId;
+    switch (p) {
+      case 'amp':
+        mc.writeSingleKnob(param, value).catch(() => {});
+        break;
+      case 'chorus':
+        mc.writeSingleKnob('mod', Math.max(0, Math.min(6, value))).catch(() => {});
+        break;
+      case 'phaser':
+        mc.writeSingleKnob('mod', 9 + Math.max(0, Math.min(6, value))).catch(() => {});
+        break;
+      case 'delay':
+        mc.writeSingleKnob(param, value).catch(() => {});
+        break;
+      case 'reverb':
+        mc.writeSingleKnob('reverb', value).catch(() => {});
+        break;
+      case 'ircab':
+        mc.writeSingleKnob('ir_cab', value).catch(() => {});
+        break;
+      case 'volume':
+        mc.writeSingleKnob('volume', value).catch(() => {});
+        break;
+    }
+  }, [adv, midiRef, mode]);
+
   const loadKnobsToPedal = useCallback(async (knobs: KnobValues) => {
     if (!midiRef.current) return;
     try {
@@ -123,10 +220,11 @@ export default function App() {
       const current = virt.presets.find(p => p.id === virt.selectedId);
       if (current) {
         setKnobValues(current.knobs);
+        if (mode === 'advanced-live') adv.resetFromKnobs(current.knobs);
         loadKnobsToPedal(current.knobs);
       }
     }
-  }, [virt.presets, virt.selectedId, loadKnobsToPedal]);
+  }, [virt.presets, virt.selectedId, loadKnobsToPedal, mode, adv]);
 
   const handleConnect = useCallback(async () => {
     setConnecting(true);
@@ -161,6 +259,7 @@ export default function App() {
       }
       setAllKnobs({ A: presets.A, B: presets.B, C: presets.C });
       setKnobValues(presets.A);
+      if (mode === 'advanced-live') adv.resetFromKnobs(presets.A);
       setStatusMsg(t('status.connected', { loaded: loadedCount, total: 3 }), 'success');
     } catch (err: unknown) {
       setStatusMsg(t('status.connectionFailed', { message: err instanceof Error ? err.message : String(err) }), 'error');
@@ -191,6 +290,17 @@ export default function App() {
     }
   }, [t, setStatusMsg, log]);
 
+  const handleModeChange = useCallback((newMode: AppMode) => {
+    if (newMode === mode) return;
+    if (newMode === 'advanced-live') {
+      adv.resetFromKnobs(knobValues);
+    }
+    if (mode === 'advanced-live') {
+      setKnobValues(adv.effectiveKnobValues);
+    }
+    setMode(newMode);
+  }, [mode, knobValues, adv]);
+
   const handleSelectPreset = useCallback(async (preset: PresetName) => {
     setSelectedPreset(preset);
     const cached = allKnobs[preset];
@@ -210,23 +320,25 @@ export default function App() {
     const vp = virt.presets.find(p => p.id === id);
     if (vp) {
       setKnobValues(vp.knobs);
+      if (mode === 'advanced-live') adv.resetFromKnobs(vp.knobs);
       await loadKnobsToPedal(vp.knobs);
       setStatusMsg(t('status.switched', { name: vp.name }), 'info');
     }
-  }, [virt.select, virt.presets, loadKnobsToPedal, setStatusMsg, t]);
+  }, [virt.select, virt.presets, loadKnobsToPedal, setStatusMsg, t, mode, adv]);
 
   const handleSave = useCallback(async () => {
+    const currentKnobs = mode === 'advanced-live' ? adv.effectiveKnobValues : knobValues;
     if (presetBank === 'virtual' && virt.selectedId) {
-      virt.updateKnobs(virt.selectedId, knobValues);
+      virt.updateKnobs(virt.selectedId, currentKnobs);
       setStatusMsg(t('virtual.saved'), 'success');
     }
     if (midiRef.current) {
       setSaving(true);
       try {
-        const settings = knobValuesToSettings(knobValues);
+        const settings = knobValuesToSettings(currentKnobs);
         if (presetBank === 'hardware') {
           await midiRef.current.saveActivePresetToSlot(selectedPreset, settings);
-          setAllKnobs(prev => ({ ...prev, [selectedPreset]: knobValues }));
+          setAllKnobs(prev => ({ ...prev, [selectedPreset]: currentKnobs }));
           setStatusMsg(t('status.savedToPedal', { name: selectedPreset }), 'success');
         } else {
           await midiRef.current.applySettingsToDsp(settings);
@@ -238,22 +350,24 @@ export default function App() {
         setSaving(false);
       }
     }
-  }, [presetBank, virt.selectedId, virt.updateKnobs, knobValues, midiRef, selectedPreset, setStatusMsg, t]);
+  }, [presetBank, virt.selectedId, virt.updateKnobs, knobValues, midiRef, selectedPreset, setStatusMsg, t, mode, adv.effectiveKnobValues]);
 
   const handleRevert = useCallback(() => {
     if (savedKnobs) {
       undoRedo.pushUndo(currentUndoKey);
       setKnobValues(savedKnobs);
+      if (mode === 'advanced-live') adv.resetFromKnobs(savedKnobs);
       setStatusMsg(t('status.reverted', { name: selectedPreset }), 'info');
       if (midiRef.current) {
         midiRef.current.applySettingsToDsp(knobValuesToSettings(savedKnobs)).catch(() => {});
       }
     }
-  }, [savedKnobs, undoRedo.pushUndo, currentUndoKey, setStatusMsg, t, selectedPreset]);
+  }, [savedKnobs, undoRedo.pushUndo, currentUndoKey, setStatusMsg, t, selectedPreset, mode, adv]);
 
   const handleFactoryReset = useCallback(async () => {
     undoRedo.pushUndo(currentUndoKey);
     setKnobValues(FACTORY_DEFAULT_KNOBS);
+    if (mode === 'advanced-live') adv.resetFromKnobs(FACTORY_DEFAULT_KNOBS);
     if (presetBank === 'virtual') {
       if (virt.selectedId) virt.updateKnobs(virt.selectedId, FACTORY_DEFAULT_KNOBS);
       setStatusMsg(t('status.resetToDefaults', { name: 'virtual' }), 'success');
@@ -268,7 +382,7 @@ export default function App() {
         }
       }
     }
-  }, [undoRedo.pushUndo, currentUndoKey, presetBank, virt.selectedId, virt.updateKnobs, selectedPreset, setStatusMsg, t]);
+  }, [undoRedo.pushUndo, currentUndoKey, presetBank, virt.selectedId, virt.updateKnobs, selectedPreset, setStatusMsg, t, mode, adv]);
 
   const handleRefreshAll = useCallback(async () => {
     if (!midiRef.current) return;
@@ -286,22 +400,24 @@ export default function App() {
 
   const handleExportPreset = useCallback(() => {
     if (presetBank === 'virtual') { virt.exportAll(); return; }
+    const currentKnobs = mode === 'advanced-live' ? adv.effectiveKnobValues : knobValues;
     downloadJson({
       format: 'cubebabypreset', version: 1,
-      preset: selectedPreset, knobs: knobValues,
+      preset: selectedPreset, knobs: currentKnobs,
       created: new Date().toISOString(),
     } as PresetFile, `cube-baby-${selectedPreset}.cubebabypreset`);
     setStatusMsg(t('status.exportedPreset', { name: selectedPreset }), 'success');
-  }, [presetBank, selectedPreset, knobValues, setStatusMsg, t, virt.exportAll]);
+  }, [presetBank, selectedPreset, knobValues, setStatusMsg, t, virt.exportAll, mode, adv.effectiveKnobValues]);
 
   const handleExportBank = useCallback(() => {
+    const currentKnobs = mode === 'advanced-live' ? adv.effectiveKnobValues : knobValues;
     downloadJson({
       format: 'cubebabybank', version: 1,
-      presets: { ...allKnobs, [selectedPreset]: knobValues },
+      presets: { ...allKnobs, [selectedPreset]: currentKnobs },
       created: new Date().toISOString(),
     } as BankFile, 'cube-baby-bank.cubebabybank');
     setStatusMsg(t('status.exportedBank'), 'success');
-  }, [allKnobs, selectedPreset, knobValues, setStatusMsg, t]);
+  }, [allKnobs, selectedPreset, knobValues, setStatusMsg, t, mode, adv.effectiveKnobValues]);
 
   const handleImport = useCallback(async () => {
     if (presetBank === 'virtual') { await virt.importAll(); return; }
@@ -314,6 +430,7 @@ export default function App() {
         const file = data as PresetFile;
         const target = file.preset as PresetName;
         setKnobValues(file.knobs);
+        if (mode === 'advanced-live') adv.resetFromKnobs(file.knobs);
         setSelectedPreset(target);
         const settings = knobValuesToSettings(file.knobs);
         await midiRef.current.saveActivePresetToSlot(target, settings);
@@ -330,6 +447,7 @@ export default function App() {
         }
         const first = Object.keys(file.presets)[0] as PresetName;
         setKnobValues(file.presets[first]);
+        if (mode === 'advanced-live') adv.resetFromKnobs(file.presets[first]);
         setSelectedPreset(first);
         setStatusMsg(t('status.importedBank'), 'success');
       } else {
@@ -340,7 +458,7 @@ export default function App() {
     } finally {
       setImporting(false);
     }
-  }, [presetBank, setStatusMsg, t, virt.importAll]);
+  }, [presetBank, setStatusMsg, t, virt.importAll, mode, adv]);
 
   const handleKnobChange = useCallback((_name: string, _value: number) => {
     setKnobValues(prev => ({ ...prev, [_name]: _value }));
@@ -412,7 +530,7 @@ export default function App() {
       {connected && !connecting && (
         <>
           {presetBank === 'hardware' ? (
-            <PresetBar selectedPreset={selectedPreset} mode={mode} loading={loading} onSelectPreset={handleSelectPreset} onModeChange={setMode} />
+            <PresetBar selectedPreset={selectedPreset} mode={mode} loading={loading} onSelectPreset={handleSelectPreset} onModeChange={handleModeChange} />
           ) : (
             <VirtualPresetBar
               virtualPresets={virt.presets}
@@ -422,27 +540,43 @@ export default function App() {
               onAddPreset={() => virt.add(knobValues)}
               onDeletePreset={virt.remove}
               onRenamePreset={virt.rename}
-              onModeChange={setMode}
+              onModeChange={handleModeChange}
             />
           )}
 
           <div className="pedal-container">
-            <Pedal
-              model={cubeBabyModel}
-              knobValues={{
-                type: knobValues.type, gain: knobValues.gain, tone: knobValues.tone,
-                mod: knobValues.mod, time: knobValues.time, fb: knobValues.fb,
-                mix: knobValues.mix, reverb: knobValues.reverb, ir_cab: knobValues.ir_cab,
-                volume: knobValues.volume,
-              }}
-              sections={{ A: knobValues.irSection, B: knobValues.delaySection, C: knobValues.toneSection }}
-              mode={mode}
-              selectedPreset={selectedPreset}
-              onChange={handleKnobChange}
-              onChangeEnd={handleKnobChangeEnd}
-              onFootswitch={handleFootswitch}
-              disabled={false}
-            />
+            {mode === 'advanced-live' ? (
+              <>
+                <PedalRack
+                  pedalStates={adv.pedalStates}
+                  onToggle={handleTogglePedal}
+                />
+                <PedalControls
+                  pedalParams={adv.pedalParams}
+                  pedalStates={adv.pedalStates}
+                  onPedalParamChange={adv.setPedalParam}
+                  onPedalParamChangeEnd={handlePedalParamChangeEnd}
+                  disabled={false}
+                />
+              </>
+            ) : (
+              <Pedal
+                model={cubeBabyModel}
+                knobValues={{
+                  type: knobValues.type, gain: knobValues.gain, tone: knobValues.tone,
+                  mod: knobValues.mod, time: knobValues.time, fb: knobValues.fb,
+                  mix: knobValues.mix, reverb: knobValues.reverb, ir_cab: knobValues.ir_cab,
+                  volume: knobValues.volume,
+                }}
+                sections={{ A: knobValues.irSection, B: knobValues.delaySection, C: knobValues.toneSection }}
+                mode={mode}
+                selectedPreset={selectedPreset}
+                onChange={handleKnobChange}
+                onChangeEnd={handleKnobChangeEnd}
+                onFootswitch={handleFootswitch}
+                disabled={false}
+              />
+            )}
           </div>
 
           <Toolbar

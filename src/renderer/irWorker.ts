@@ -1,3 +1,5 @@
+/// <reference lib="webworker" />
+
 self.onmessage = function(e) {
   const { channels, sourceRate, targetRate, irSamples } = e.data;
   

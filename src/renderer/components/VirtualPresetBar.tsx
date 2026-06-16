@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { VirtualPreset } from '../types';
+import type { VirtualPreset, AppMode } from '../types';
 
 interface VirtualPresetBarProps {
   virtualPresets: VirtualPreset[];
   selectedVirtualPresetId: string | null;
-  mode: 'live' | 'preset';
+  mode: AppMode;
   onSelectPreset: (id: string) => void;
   onAddPreset: () => void;
   onDeletePreset: (id: string) => void;
   onRenamePreset: (id: string, name: string) => void;
-  onModeChange: (mode: 'live' | 'preset') => void;
+  onModeChange: (mode: AppMode) => void;
 }
 
 export function VirtualPresetBar({
@@ -89,6 +89,12 @@ export function VirtualPresetBar({
           onClick={() => onModeChange('live')}
         >
           {t('preset.modeLive')}
+        </button>
+        <button
+          className={`mode-btn ${mode === 'advanced-live' ? 'active' : ''}`}
+          onClick={() => onModeChange('advanced-live')}
+        >
+          {t('preset.modeAdvancedLive')}
         </button>
       </div>
     </div>

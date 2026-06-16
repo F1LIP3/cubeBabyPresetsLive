@@ -1,6 +1,6 @@
 {
   "name": "cube-baby-presets-live",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Live editor for Cuvave Cube Baby effects presets",
   "main": "dist/main/main.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "dev:main": "tsc -p tsconfig.main.json --watch",
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:main\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "build": "tsc -p tsconfig.main.json && vite build",
+    "build:windows": "tsc -p tsconfig.main.json && vite build && electron-builder --win --x64",
     "build:android": "vite build && npx cap copy android && cd android && .\\gradlew assembleDebug",
     "start": "electron ."
   },
@@ -29,8 +30,25 @@
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.6.0",
     "vite": "^8.0.16",
     "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.cubebaby.presets",
+    "productName": "Cube Baby Presets",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
   }
 }

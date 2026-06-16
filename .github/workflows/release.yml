@@ -1,0 +1,32 @@
+name: Build and Release Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Frontend and Main
+        run: npm run build:windows
+
+      - name: Upload Release Artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist_electron/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

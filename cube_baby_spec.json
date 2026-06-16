@@ -1,0 +1,128 @@
+{
+  "device": "Cube Baby",
+  "format_version": "1.0",
+  "parameter_definitions": {
+    "knobs": {
+      "type": {
+        "description": "The core amplifier/effect model type.",
+        "type": "integer",
+        "min": 0,
+        "max": 8,
+        "mapping": {
+          "0": "P-Zone Clean",
+          "1": "US Gold 100",
+          "2": "Two Stone OD",
+          "3": "Doctor3 B",
+          "4": "Cali JP A",
+          "5": "Day Tripper",
+          "6": "Shittcow Dist",
+          "7": "Wo Stone OD",
+          "8": "Mr Smith Dist"
+        }
+      },
+      "gain": {
+        "description": "Amount of distortion or input level.",
+        "type": "integer",
+        "min": 0,
+        "max": 7
+      },
+      "tone": {
+        "description": "High and low frequency balance.",
+        "type": "integer",
+        "min": 0,
+        "max": 15
+      },
+      "mod": {
+        "description": "Modulation intensity (e.g., chorus, tremolo).",
+        "type": "integer",
+        "min": 0,
+        "max": 15
+      },
+      "time": {
+        "description": "Delay time or modulation speed.",
+        "type": "integer",
+        "min": 0,
+        "max": 31
+      },
+      "fb": {
+        "description": "Feedback amount.",
+        "type": "integer",
+        "min": 0,
+        "max": 127
+      },
+      "mix": {
+        "description": "Wet/Dry mix ratio.",
+        "type": "integer",
+        "min": 0,
+        "max": 118
+      },
+      "reverb": {
+        "description": "Reverb decay and size.",
+        "type": "integer",
+        "min": 0,
+        "max": 15
+      },
+      "ir_cab": {
+        "description": "Impulse Response Cabinet selection.",
+        "type": "integer",
+        "min": 0,
+        "max": 8,
+        "mapping": {
+          "0": "IR Off",
+          "1": "Line 6 Vetta 2×12",
+          "2": "Marshall 1960AV 4×12",
+          "3": "Marshall 1960A T75 4×12",
+          "4": "VHT Deliverance 2×12",
+          "5": "Soldano 2×12",
+          "6": "Peavey 5150+Mesa 4×12",
+          "7": "JSX + Mesa C1000 4×12",
+          "8": "Diezel V30 SM57 4×12"
+        }
+      },
+      "volume": {
+        "description": "Output volume level.",
+        "type": "integer",
+        "min": 0,
+        "max": 127
+      }
+    },
+    "flags": {
+      "irSection": {
+        "description": "Enable/Disable Impulse Response section.",
+        "type": "boolean",
+        "default": true
+      },
+      "delaySection": {
+        "description": "Enable/Disable Delay section.",
+        "type": "boolean",
+        "default": true
+      },
+      "toneSection": {
+        "description": "Enable/Disable Tone section.",
+        "type": "boolean",
+        "default": true
+      }
+    }
+  },
+  "example_presets": [
+    {
+      "id": "vp_17",
+      "name": "CH0 Clean",
+      "knobs": {
+        "type": 0,
+        "gain": 7,
+        "tone": 5,
+        "mod": 5,
+        "time": 15,
+        "fb": 64,
+        "mix": 18,
+        "reverb": 12,
+        "ir_cab": 2,
+        "volume": 64,
+        "irSection": true,
+        "delaySection": true,
+        "toneSection": true
+      }
+    }
+  ]
+}

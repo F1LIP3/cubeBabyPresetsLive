@@ -1,6 +1,25 @@
 import type { PresetName } from '../protocol/types';
 import type { KnobValues } from '../protocol';
 
+export type PedalId = 'amp' | 'chorus' | 'phaser' | 'delay' | 'reverb' | 'ircab' | 'volume';
+
+export type AppMode = 'live' | 'preset' | 'advanced-live';
+
+export interface PedalParameters {
+  amp: { type: number; gain: number; tone: number };
+  chorus: { level: number };
+  phaser: { level: number };
+  delay: { time: number; fb: number; mix: number };
+  reverb: { reverb: number };
+  ircab: { slot: number };
+  volume: { level: number };
+}
+
+export interface AdvancedLiveState {
+  pedalStates: Record<PedalId, boolean>;
+  pedalParams: PedalParameters;
+}
+
 export interface ToolbarHandlers {
   onSave: () => void;
   onRevert: () => void;

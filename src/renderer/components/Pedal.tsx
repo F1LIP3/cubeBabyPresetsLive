@@ -6,11 +6,13 @@ interface Model {
   knobs: Record<string, [number, number]>;
 }
 
+import type { AppMode } from '../types';
+
 interface PedalProps {
   model: Model;
   knobValues: Record<string, number>;
   sections: Record<string, boolean>;
-  mode: 'live' | 'preset';
+  mode: AppMode;
   selectedPreset: string;
   onChange: (name: string, value: number) => void;
   onChangeEnd: (name: string, value: number) => void;

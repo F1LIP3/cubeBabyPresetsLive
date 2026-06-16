@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import type { PresetBank } from '../types';
+import type { PresetBank, AppMode } from '../types';
 
 interface AppHeaderProps {
   connected: boolean;
   connecting: boolean;
-  mode: 'live' | 'preset';
+  mode: AppMode;
   presetBank: PresetBank;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -20,7 +20,7 @@ export function AppHeader({ connected, connecting, mode, presetBank, onConnect, 
         <div className="app-logo">
           <span className="app-logo-icon">◆</span>
           <h1>{t('app.title')}</h1>
-          <span className={`app-badge ${mode}`}>{mode.toUpperCase()}</span>
+          <span className={`app-badge ${mode}`}>{mode === 'advanced-live' ? 'ADV LIVE' : mode.toUpperCase()}</span>
         </div>
         <div className="app-header-sub">{t('app.editor')}</div>
       </div>
