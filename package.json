@@ -1,6 +1,6 @@
 {
   "name": "cube-baby-presets-live",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Live editor for Cuvave Cube Baby effects presets",
   "main": "dist/main/main.js",
   "scripts": {
