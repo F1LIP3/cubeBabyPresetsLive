@@ -113,7 +113,7 @@ export default function App() {
     return JSON.stringify(current) !== JSON.stringify(savedKnobs);
   }, [knobValues, savedKnobs, mode, adv.effectiveKnobValues]);
 
-  const handleTogglePedal = useCallback((id: PedalId) => {
+  const handleTogglePedal = useCallback(async (id: PedalId) => {
     if (!midiRef.current || mode !== 'advanced-live') return;
     const oldOn = adv.pedalStates[id];
     const newOn = !oldOn;
@@ -124,50 +124,46 @@ export default function App() {
 
     const mc = midiRef.current;
 
-    // Toggle hardware section bypass when the combined state of its pedals changes
-    const modOn = newStates.chorus || newStates.phaser;
-    const wasModOn = adv.pedalStates.chorus || adv.pedalStates.phaser;
-    const wasDelayOn = adv.pedalStates.delay;
-    const wasSectionB = wasModOn || wasDelayOn;
-    const sectionBOn = modOn || newStates.delay;
-    if (wasSectionB !== sectionBOn) {
-      mc.toggleSection('B', sectionBOn).catch(() => {});
-    }
-
-    const irOn = newStates.reverb || newStates.ircab;
-    const wasIrOn = adv.pedalStates.reverb || adv.pedalStates.ircab;
-    if (wasIrOn !== irOn) {
-      mc.toggleSection('A', irOn).catch(() => {});
-    }
-
-    switch (id) {
-      case 'amp':
-        mc.toggleSection('C', newOn).catch(() => {});
-        break;
-      case 'chorus':
-      case 'phaser': {
-        let mod = 7;
-        if (newStates.chorus) mod = 6 - Math.max(0, Math.min(6, adv.pedalParams.chorus.level));
-        else if (newStates.phaser) mod = 9 + Math.max(0, Math.min(6, adv.pedalParams.phaser.level));
-        mc.writeSingleKnob('mod', mod).catch(() => {});
-        break;
+    try {
+      // Toggle hardware section bypass when modulation state changes
+      // NOTE: delay pedal does NOT control section B — only mix param.
+      const modOn = newStates.chorus || newStates.phaser;
+      const wasModOn = adv.pedalStates.chorus || adv.pedalStates.phaser;
+      if (wasModOn !== modOn) {
+        await mc.toggleSection('B', modOn);
       }
-      case 'delay': {
-        const p = adv.pedalParams.delay;
-        mc.toggleSection('B', newOn)
-          .then(() => mc.writeSingleKnob('time', newOn ? p.time : 0))
-          .then(() => mc.writeSingleKnob('fb', newOn ? p.fb : 0))
-          .then(() => mc.writeSingleKnob('mix', newOn ? p.mix : 0))
-          .catch(() => {});
-        break;
+
+      const irOn = newStates.reverb || newStates.ircab;
+      const wasIrOn = adv.pedalStates.reverb || adv.pedalStates.ircab;
+      if (wasIrOn !== irOn) {
+        await mc.toggleSection('A', irOn);
       }
-      case 'reverb':
-        mc.writeSingleKnob('reverb', newOn ? adv.pedalParams.reverb.reverb : 0).catch(() => {});
-        break;
-      case 'ircab':
-        mc.writeSingleKnob('ir_cab', newOn ? adv.pedalParams.ircab.slot : 0).catch(() => {});
-        break;
-    }
+
+      switch (id) {
+        case 'amp':
+          await mc.toggleSection('C', newOn);
+          break;
+        case 'chorus':
+        case 'phaser': {
+          let mod = 7;
+          if (newStates.chorus) mod = 6 - Math.max(0, Math.min(6, adv.pedalParams.chorus.level));
+          else if (newStates.phaser) mod = 9 + Math.max(0, Math.min(6, adv.pedalParams.phaser.level));
+          await mc.writeSingleKnob('mod', mod);
+          break;
+        }
+        case 'delay':
+          // Delay is toggled by mix only — zeroing time/fb or toggling
+          // section B would affect chorus/phaser. Mix=0 => delay off.
+          await mc.writeSingleKnob('mix', newOn ? adv.pedalParams.delay.mix : 0);
+          break;
+        case 'reverb':
+          await mc.writeSingleKnob('reverb', newOn ? adv.pedalParams.reverb.reverb : 0);
+          break;
+        case 'ircab':
+          await mc.writeSingleKnob('ir_cab', newOn ? adv.pedalParams.ircab.slot : 0);
+          break;
+      }
+    } catch {}
   }, [adv, midiRef, mode]);
 
   const handlePedalParamChangeEnd = useCallback((
