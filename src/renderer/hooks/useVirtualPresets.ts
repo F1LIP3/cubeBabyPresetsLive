@@ -117,22 +117,24 @@ export function useVirtualPresets(currentKnobs: KnobValues): VirtualPresetAction
     downloadJson(file, 'cube-baby-virtual-presets.json');
   }, [presets]);
 
-  const importAll = useCallback(async () => {
-    try {
-      const text = await loadFile();
-      const data = JSON.parse(text);
-      if (data.format !== 'cubebabyvirtualbank' || !Array.isArray(data.presets)) throw new Error('Invalid format');
-      const imported = data.presets as VirtualPreset[];
-      setPresets(prev => {
-        if (imported.length + prev.length > 50) return prev;
-        const merged = [...prev];
-        for (const vp of imported) {
-          merged.push({ ...vp, id: `vp_${nextVirtualId++}` });
-        }
-        return merged;
-      });
-    } catch {}
-  }, []);
+  const importAll = useCallback(async (): Promise<void> => {
+    const text = await loadFile();
+    const data = JSON.parse(text);
+    if (data.format !== 'cubebabyvirtualbank' || !Array.isArray(data.presets)) {
+      throw new Error('Invalid virtual bank file format');
+    }
+    const imported = data.presets as VirtualPreset[];
+    if (imported.length + presets.length > 50) {
+      throw new Error(`Cannot import ${imported.length} presets — would exceed limit of 50`);
+    }
+    setPresets(prev => {
+      const merged = [...prev];
+      for (const vp of imported) {
+        merged.push({ ...vp, id: `vp_${nextVirtualId++}` });
+      }
+      return merged;
+    });
+  }, [presets.length]);
 
   return {
     presets, selectedId, current, count: presets.length,

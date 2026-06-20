@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { KnobValues } from '../../protocol';
+import { knobValuesToSettings } from '../../protocol';
 import type { CubeBabyMidi } from '../../midi/cubeBabyMidi';
 
 const MAX_UNDO_DEPTH = 30;
@@ -64,12 +65,8 @@ export function useUndoRedo(
 
   const writeKnobs = useCallback((knobs: KnobValues) => {
     if (!midiRef.current) return;
-    const paramNames = Object.keys(knobs).filter(
-      k => k !== 'irSection' && k !== 'delaySection' && k !== 'toneSection'
-    );
-    for (const param of paramNames) {
-      midiRef.current.writeSingleKnob(param, knobs[param as keyof KnobValues] as number).catch(() => {});
-    }
+    const settings = knobValuesToSettings(knobs);
+    midiRef.current.applySettingsToDsp(settings).catch(() => {});
   }, [midiRef]);
 
   const undo = useCallback(() => {

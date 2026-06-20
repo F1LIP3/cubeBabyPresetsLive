@@ -57,9 +57,22 @@ function defaultPedalStates(): Record<PedalId, boolean> {
   };
 }
 
+function pedalStatesFromKnobs(knobs: KnobValues): Record<PedalId, boolean> {
+  const mod = knobs.mod;
+  return {
+    amp: knobs.type > 0 || knobs.gain > 0 || knobs.tone > 0,
+    chorus: mod >= 0 && mod <= 6,
+    phaser: mod >= 9,
+    delay: knobs.time > 0 || knobs.fb > 0 || knobs.mix > 0,
+    reverb: knobs.reverb > 0,
+    ircab: knobs.ir_cab > 0,
+    volume: true,
+  };
+}
+
 export function useAdvancedLiveMode(initialKnobValues: KnobValues) {
   const [state, setState] = useState<AdvancedLiveState>(() => ({
-    pedalStates: defaultPedalStates(),
+    pedalStates: pedalStatesFromKnobs(initialKnobValues),
     pedalParams: extractParams(initialKnobValues),
   }));
 
@@ -93,7 +106,7 @@ export function useAdvancedLiveMode(initialKnobValues: KnobValues) {
 
   const resetFromKnobs = useCallback((knobs: KnobValues) => {
     setState({
-      pedalStates: defaultPedalStates(),
+      pedalStates: pedalStatesFromKnobs(knobs),
       pedalParams: extractParams(knobs),
     } satisfies AdvancedLiveState);
   }, []);

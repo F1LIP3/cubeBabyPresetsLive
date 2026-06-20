@@ -76,7 +76,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const midiRef = useRef<CubeBabyMidi | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [midiDevices, setMidiDevices] = useState<MidiDeviceInfo[]>([]);
   const [selectedMidiDeviceId, setSelectedMidiDeviceId] = useState<string>('');
 
@@ -426,7 +425,15 @@ export default function App() {
   }, [allKnobs, selectedPreset, knobValues, setStatusMsg, t, mode, adv.effectiveKnobValues]);
 
   const handleImport = useCallback(async () => {
-    if (presetBank === 'virtual') { await virt.importAll(); return; }
+    if (presetBank === 'virtual') {
+      try {
+        await virt.importAll();
+        setStatusMsg(t('status.importedBank'), 'success');
+      } catch (err: unknown) {
+        setStatusMsg(t('status.importFailed', { message: err instanceof Error ? err.message : String(err) }), 'error');
+      }
+      return;
+    }
     if (!midiRef.current) return;
     setImporting(true);
     try {
@@ -473,11 +480,7 @@ export default function App() {
   const handleKnobChangeEnd = useCallback((name: string, value: number) => {
     if (!midiRef.current) return;
     undoRedo.pushUndo(currentUndoKey);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      if (!midiRef.current) return;
-      try { await midiRef.current.writeSingleKnob(name, value); } catch {}
-    }, 50);
+    midiRef.current.writeSingleKnob(name, value).catch(() => {});
   }, [currentUndoKey, undoRedo.pushUndo]);
 
   // Undo/redo: handled by useUndoRedo hook (undo/redo)
@@ -523,10 +526,6 @@ export default function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [connected, connecting, presetBank, handleSelectPreset, handleSave, undoRedo.undo, undoRedo.redo, handleExportPreset, handleImport]);
-
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
 
   return (
     <div className="app">

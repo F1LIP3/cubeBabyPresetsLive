@@ -48,15 +48,24 @@ export function useIR(
   const [irLabOpen, setIrLabOpen] = useState(() => localStorage.getItem('irLabOpen') !== 'closed');
 
   const saveIrData = useCallback((slot: number, f32: Float32Array) => {
-    const bytes = new Uint8Array(f32.buffer);
-    localStorage.setItem(`irData_${slot}`, btoa(String.fromCharCode(...bytes)));
+    const bytes = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    localStorage.setItem(`irData_${slot}`, btoa(binary));
   }, []);
 
   const loadIrData = useCallback((slot: number): Float32Array | null => {
     const b64 = localStorage.getItem(`irData_${slot}`);
     if (!b64) return null;
     try {
-      return new Float32Array(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer);
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
     } catch { return null; }
   }, []);
 
@@ -124,6 +133,16 @@ export function useIR(
         await new Promise(r => setTimeout(r, 100));
       }
       setIrStatus('verifying');
+      setIrProgress({ current: 90, total: 100 });
+      const verifyData = await midiRef.current.readIRFromRom(slot, IR_ROM_SLOT_SIZE);
+      if (verifyData.length !== romBytes.length) {
+        throw new Error(`Verification failed: size mismatch (expected ${romBytes.length}, got ${verifyData.length})`);
+      }
+      for (let i = 0; i < romBytes.length; i++) {
+        if (romBytes[i] !== verifyData[i]) {
+          throw new Error(`Verification failed: byte mismatch at offset ${i}`);
+        }
+      }
       setIrProgress({ current: 100, total: 100 });
       saveIrNames({ ...irNames, [slot]: name });
       setIrStatus('done');
@@ -134,13 +153,19 @@ export function useIR(
     }
   }, [midiRef, irPreprocessed, irSlot, irName, irNames, saveIrNames, saveIrData, setStatusMsg]);
 
+  /** ROM format: 4B flag + 4B volume + 4088B audio (1022 float32) */
+  function extractRomAudio(romData: Uint8Array): Float32Array {
+    const audioBytes = romData.slice(8);
+    return new Float32Array(audioBytes.buffer, audioBytes.byteOffset, 1022);
+  }
+
   const handleIRDownloadBackup = useCallback(async () => {
     if (!midiRef.current) return;
     try {
       let f32 = loadIrData(irSlot);
       if (!f32) {
         const data = await midiRef.current.readIRFromRom(irSlot, IR_ROM_SLOT_SIZE);
-        f32 = new Float32Array(data.buffer, 0, 512);
+        f32 = extractRomAudio(data);
         saveIrData(irSlot, f32);
       }
       downloadBlob(float32ToWav(f32).buffer as ArrayBuffer, `ir_slot${irSlot}_${irNames[irSlot] || 'backup'}.wav`);
@@ -155,10 +180,11 @@ export function useIR(
       let f32 = loadIrData(slot);
       if (!f32) {
         const romData = await midiRef.current.readIRFromRom(slot, IR_ROM_SLOT_SIZE);
-        f32 = new Float32Array(romData.buffer, 0, 512);
+        f32 = extractRomAudio(romData);
         saveIrData(slot, f32);
       }
-      await midiRef.current.writeIRToRam(irToBytes(f32));
+      const ramSamples = f32.length > 512 ? f32.slice(0, 512) : f32;
+      await midiRef.current.writeIRToRam(irToBytes(ramSamples));
       await midiRef.current.writeParameterLive('Cabinet', 0);
       await midiRef.current.setIRDistance(irDistance);
       setActiveCustomSlot(slot);
@@ -173,8 +199,9 @@ export function useIR(
     log('=== SCAN IR SLOTS ===');
     for (let slot = 0; slot < IR_SLOT_COUNT; slot++) {
       try {
-        const data = await baby.readIRFromRom(slot, 64);
-        const slotF32 = new Float32Array(data.buffer as ArrayBuffer).slice(0, 4);
+        const data = await baby.readIRFromRom(slot, 72);
+        const audio = data.slice(8);
+        const slotF32 = new Float32Array(audio.buffer, audio.byteOffset, 4);
         log(`Slot ${slot}: [${Array.from(slotF32).map(v => v.toFixed(4)).join(', ')}]`);
       } catch (e: any) { log(`Slot ${slot}: error ${e.message}`); }
     }
