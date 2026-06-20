@@ -125,12 +125,17 @@ export default function App() {
     const mc = midiRef.current;
 
     try {
-      // Toggle hardware section bypass when modulation state changes
-      // NOTE: delay pedal does NOT control section B — only mix param.
-      const modOn = newStates.chorus || newStates.phaser;
-      const wasModOn = adv.pedalStates.chorus || adv.pedalStates.phaser;
-      if (wasModOn !== modOn) {
-        await mc.toggleSection('B', modOn);
+      // Section B is ON when chorus, phaser, OR delay is ON.
+      // Only chorus/phaser pedal toggles can change section B —
+      // delay pedal only controls mix, never touches section B.
+      if (id === 'chorus' || id === 'phaser') {
+        const modOn = newStates.chorus || newStates.phaser;
+        const wasModOn = adv.pedalStates.chorus || adv.pedalStates.phaser;
+        const sectionBOn = modOn || adv.pedalStates.delay;
+        const wasSectionB = wasModOn || adv.pedalStates.delay;
+        if (wasSectionB !== sectionBOn) {
+          await mc.toggleSection('B', sectionBOn);
+        }
       }
 
       const irOn = newStates.reverb || newStates.ircab;
