@@ -20,6 +20,9 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Sync package.json version from tag
+        run: node -e "const p=require('./package.json'); p.version='${{ github.ref_name }}'.replace(/^v/,''); require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
+
       - name: Install dependencies
         run: npm install
 
@@ -54,6 +57,14 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Sync versions from tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VER="${TAG#v}"
+          node -e "const p=require('./package.json'); p.version='$VER'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
+          sed -i "s/versionName \".*\"/versionName \"$VER\"/" android/app/build.gradle
 
       - name: Setup Android SDK
         run: |
