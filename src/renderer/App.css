@@ -1618,11 +1618,100 @@ body {
 }
 
 /* ── Responsive ── */
-/* When rack fits without overflow, center it */
+/* Desktop/tablet: center rack when it fits */
 @media (min-width: 600px) {
   .pedal-rack-pedals {
     justify-content: center;
     overflow-x: visible;
+  }
+}
+
+/* Portrait phones: wrap pedals into 2 rows (4 top + 3 bottom) */
+@media (max-width: 600px) {
+  .pedal-rack {
+    padding: 8px;
+  }
+
+  .pedal-rack-label {
+    margin-bottom: 6px;
+  }
+
+  .pedal-rack-pedals {
+    overflow-x: visible;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    scroll-snap-type: none;
+    overscroll-behavior-x: auto;
+    padding: 2px;
+  }
+
+  .pedal-visual {
+    min-width: 0;
+    max-width: none;
+    flex: 0 0 calc(25% - 5px);
+    padding: 6px 4px;
+    border-width: 1px;
+    gap: 2px;
+    scroll-snap-align: none;
+    border-radius: var(--radius-sm);
+  }
+
+  .pedal-visual-led,
+  .pedal-visual-icon {
+    display: none;
+  }
+
+  .pedal-visual-label {
+    font-size: 7px;
+    letter-spacing: 0.5px;
+  }
+
+  .pedal-visual-stomp {
+    width: 40px;
+    height: 40px;
+    font-size: 9px;
+  }
+
+  .pedal-visual-always {
+    font-size: 7px;
+    padding: 10px 0;
+  }
+}
+
+/* Extra-compact: even tighter for very small phones */
+@media (max-width: 480px) {
+  .pedal-rack {
+    padding: 6px;
+  }
+
+  .pedal-rack-label {
+    display: none;
+  }
+
+  .pedal-rack-pedals {
+    gap: 4px;
+  }
+
+  .pedal-visual {
+    flex: 0 0 calc(25% - 4px);
+    padding: 3px 2px;
+  }
+
+  .pedal-visual-stomp {
+    width: 36px;
+    height: 36px;
+    font-size: 8px;
+  }
+
+  .pedal-visual-label {
+    font-size: 6px;
+    letter-spacing: 0.3px;
+  }
+
+  .pedal-visual-always {
+    font-size: 6px;
+    padding: 7px 0;
   }
 }
 
