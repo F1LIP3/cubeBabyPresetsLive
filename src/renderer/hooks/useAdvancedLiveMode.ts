@@ -60,10 +60,10 @@ function defaultPedalStates(): Record<PedalId, boolean> {
 function pedalStatesFromKnobs(knobs: KnobValues): Record<PedalId, boolean> {
   const mod = knobs.mod;
   return {
-    amp: knobs.type > 0 || knobs.gain > 0 || knobs.tone > 0,
+    amp: knobs.toneSection || knobs.type > 0 || knobs.gain > 0 || knobs.tone > 0,
     chorus: mod >= 0 && mod <= 6,
     phaser: mod >= 9,
-    delay: knobs.time > 0 || knobs.fb > 0 || knobs.mix > 0,
+    delay: knobs.delaySection || knobs.time > 0 || knobs.fb > 0 || knobs.mix > 0,
     reverb: knobs.reverb > 0,
     ircab: knobs.ir_cab > 0,
     volume: true,

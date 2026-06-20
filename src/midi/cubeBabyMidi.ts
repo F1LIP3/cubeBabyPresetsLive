@@ -236,12 +236,12 @@ export class CubeBabyMidi {
   }
 
   async applySettingsToDsp(settings: Settings): Promise<void> {
-    // Write full 16-byte block to active area (0x0000) in a single message.
-    // Individual byte writes to slot A are unreliable — the pedal may
-    // reject or misapply sequential single-byte writes for certain
-    // parameters (notably delay section). One batch write guarantees
-    // all params take effect atomically.
-    const msg = buildWriteActivePresetMessage(settings);
+    // Write full 16-byte block to slot A flash area (0x80000000) in one message.
+    // Single-byte writes to this area are reliable for real-time tweaks, but
+    // sending 13 sequential writes for all params is not — the pedal may drop
+    // or misapply some (notably delay section toggle byte 11). One batch write
+    // guarantees all params and section toggles take effect atomically.
+    const msg = buildWriteFlashPresetMessage('A', settings);
     await this.sendAndWait(msg);
   }
 

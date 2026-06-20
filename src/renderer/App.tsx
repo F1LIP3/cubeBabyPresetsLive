@@ -154,7 +154,8 @@ export default function App() {
       }
       case 'delay': {
         const p = adv.pedalParams.delay;
-        mc.writeSingleKnob('time', newOn ? p.time : 0)
+        mc.toggleSection('B', newOn)
+          .then(() => mc.writeSingleKnob('time', newOn ? p.time : 0))
           .then(() => mc.writeSingleKnob('fb', newOn ? p.fb : 0))
           .then(() => mc.writeSingleKnob('mix', newOn ? p.mix : 0))
           .catch(() => {});
