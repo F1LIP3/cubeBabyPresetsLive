@@ -19,7 +19,7 @@ import {
   buildEraseIRRomSectorMessage,
   KnobValues,
 } from '../protocol';
-import { PARAMETER_NAMES, ACTIVE_SETTINGS_ADDR, SETTINGS_BASE_ADDR, COMMAND_TYPE, IR_WRITE_CHUNK_SIZE, IR_SLOT_SIZE, IR_ROM_SLOT_SIZE } from '../protocol/types';
+import { ACTIVE_SETTINGS_ADDR, SETTINGS_BASE_ADDR, COMMAND_TYPE, IR_WRITE_CHUNK_SIZE, IR_SLOT_SIZE, IR_ROM_SLOT_SIZE } from '../protocol/types';
 import type { MidiService } from './midiService';
 import { WebMidiService } from './webMidiService';
 import { CapacitorMidiService } from './capacitorMidiService';
@@ -236,21 +236,13 @@ export class CubeBabyMidi {
   }
 
   async applySettingsToDsp(settings: Settings): Promise<void> {
-    const paramToField: Record<string, keyof Settings> = {
-      Type: 'type', Gain: 'gain', Tone: 'tone',
-      Reverb: 'reverb', Feedback: 'feedback', Volume: 'volume',
-      Time: 'time', Mix: 'mix', Modulation: 'modulation',
-      Cabinet: 'cabinet',
-      IRSection: 'irSection', DelaySection: 'delaySection', ToneSection: 'toneSection',
-    };
-    for (const paramName of PARAMETER_NAMES) {
-      const field = paramToField[paramName];
-      if (!field) continue;
-      const raw = settings[field];
-      const value = typeof raw === 'boolean' ? (raw ? 1 : 0) : raw;
-      // Always write to slot A � that's where the pedal physically reads from
-      await this.writeParameterLive(paramName as ParameterName, value);
-    }
+    // Write full 16-byte block to active area (0x0000) in a single message.
+    // Individual byte writes to slot A are unreliable — the pedal may
+    // reject or misapply sequential single-byte writes for certain
+    // parameters (notably delay section). One batch write guarantees
+    // all params take effect atomically.
+    const msg = buildWriteActivePresetMessage(settings);
+    await this.sendAndWait(msg);
   }
 
   async writePreset(preset: PresetName, settings: Settings): Promise<void> {
