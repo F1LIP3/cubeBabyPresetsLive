@@ -1,6 +1,31 @@
 {
   "device": "Cube Baby",
-  "format_version": "1.0",
+  "format_version": "1.1",
+  "description": "Specification for Cube Baby virtual bank presets. This file documents the working limits, logic, and constraints for generating valid presets.",
+  "section_layout": {
+    "description": "The Cube Baby DSP is divided into three hardware sections. Each section can be bypassed independently via its flag.",
+    "A: IR": {
+      "flag": "irSection",
+      "content": ["Reverb", "Cabinet (IR)"],
+      "note": "When irSection is false, reverb and cabinet are bypassed regardless of their values."
+    },
+    "B: Modulation+Delay": {
+      "flag": "delaySection",
+      "content": ["Modulation (chorus/phaser)", "Delay (time, feedback, mix)"],
+      "note": "Despite the flag name 'delaySection', it controls the ENTIRE modulation+delay block. Setting delaySection=false bypasses both chorus/phaser AND delay. If mod!==7 (chorus/phaser active) OR mix>0 (delay active), delaySection MUST be true or those effects will be inaudible."
+    },
+    "C: Tone": {
+      "flag": "toneSection",
+      "content": ["Amp type", "Gain", "Tone"],
+      "note": "When toneSection is false, the amplifier model is bypassed."
+    }
+  },
+  "critical_rules": [
+    "MODULATION AND DELAY MUST HAVE delaySection=true: If knobValues.mod !== 7 (meaning chorus or phaser is active) OR knobValues.mix > 0 (delay is on), delaySection MUST be set to true. Otherwise the entire modulation+delay block is bypassed and those effects will be silent.",
+    "delaySection FALSE is only safe when BOTH mod===7 AND mix===0: It is acceptable to set delaySection=false only when there is no modulation effect (mod=7) and no delay (mix=0).",
+    "Mutual exclusion: chorus and phaser cannot be active simultaneously. mod values 0-6 indicate chorus, 8-15 indicate phaser, 7 is neutral (no modulation).",
+    "Modulation values 0-6 and 9-15 are always valid for delaySection=true regardless of mix value: you can have chorus OR phaser active without delay (mix=0) as long as delaySection=true."
+  ],
   "parameter_definitions": {
     "knobs": {
       "type": {
@@ -33,42 +58,44 @@
         "max": 15
       },
       "mod": {
-        "description": "Modulation intensity (chorus((+)0-6(-)), 7 off, phaser((-)8-15(+))).",
+        "description": "Modulation type and intensity. 0-6 = Chorus (0=most intense, 6=least), 7 = Off/neutral, 8-15 = Phaser (8=least, 15=most intense). Chorus and phaser are mutually exclusive.",
         "type": "integer",
         "min": 0,
         "max": 15
       },
       "time": {
-        "description": "Delay time or modulation speed.",
+        "description": "Delay time in ms (or modulation speed when mod is active).",
         "type": "integer",
         "min": 0,
-        "max": 31
+        "max": 31,
+        "note": "When delay pedal is toggled OFF in live mode, time and feedback are preserved (not zeroed). Only mix is set to 0."
       },
       "fb": {
-        "description": "Feedback amount.",
+        "description": "Delay feedback amount (number of repeats). Higher values = more repeats.",
         "type": "integer",
         "min": 0,
         "max": 127
       },
       "mix": {
-        "description": "Wet/Dry mix ratio.",
+        "description": "Wet/Dry mix for the delay effect. 0 = no delay (muted), max = full wet.",
         "type": "integer",
         "min": 0,
-        "max": 118
+        "max": 118,
+        "note": "Delay pedal ON/OFF is controlled by mix only: 0=OFF, saved value=ON. Time and feedback are not touched when toggling delay."
       },
       "reverb": {
-        "description": "Reverb decay and size.",
+        "description": "Reverb decay/size. Requires irSection=true to be heard.",
         "type": "integer",
         "min": 0,
         "max": 15
       },
       "ir_cab": {
-        "description": "Impulse Response Cabinet selection.",
+        "description": "Impulse Response Cabinet selection. Requires irSection=true to be heard.",
         "type": "integer",
         "min": 0,
         "max": 8,
         "mapping": {
-          "0": "IR Off",
+          "0": "IR Off (cabinet bypassed)",
           "1": "Line 6 Vetta 2×12",
           "2": "Marshall 1960AV 4×12",
           "3": "Marshall 1960A T75 4×12",
@@ -80,7 +107,7 @@
         }
       },
       "volume": {
-        "description": "Output volume level.",
+        "description": "Output volume level (always active, not stompable).",
         "type": "integer",
         "min": 0,
         "max": 127
@@ -88,17 +115,18 @@
     },
     "flags": {
       "irSection": {
-        "description": "Enable/Disable Impulse Response section.",
+        "description": "Enable/Disable the IR section (reverb + cabinet). When false, reverb and cabinet are bypassed.",
         "type": "boolean",
         "default": true
       },
       "delaySection": {
-        "description": "Enable/Disable Delay section.",
+        "description": "Enable/Disable the modulation+delay block (Section B). When false, BOTH chorus/phaser AND delay are bypassed. This flag is automatically corrected by knobValuesToSettings() if mod!==7 or mix>0, but presets should store the correct value.",
         "type": "boolean",
-        "default": true
+        "default": true,
+        "must_be_true_when": "mod !== 7 (chorus or phaser active) OR mix > 0 (delay active)"
       },
       "toneSection": {
-        "description": "Enable/Disable Tone section.",
+        "description": "Enable/Disable the tone section (amp type, gain, tone). When false, the amplifier is bypassed.",
         "type": "boolean",
         "default": true
       }
@@ -122,7 +150,68 @@
         "irSection": true,
         "delaySection": true,
         "toneSection": true
-      }
+      },
+      "notes": "Classic clean preset. delaySection=true because mod=5 (chorus active) AND mix=18 (delay active)."
+    },
+    {
+      "id": "vp_18",
+      "name": "High Gain Lead",
+      "knobs": {
+        "type": 8,
+        "gain": 7,
+        "tone": 8,
+        "mod": 7,
+        "time": 20,
+        "fb": 60,
+        "mix": 40,
+        "reverb": 10,
+        "ir_cab": 6,
+        "volume": 60,
+        "irSection": true,
+        "delaySection": true,
+        "toneSection": true
+      },
+      "notes": "High gain lead with delay. delaySection=true because mix=40 (delay active). mod=7 (no modulation)."
+    },
+    {
+      "id": "vp_19",
+      "name": "Clean Chorus Only",
+      "knobs": {
+        "type": 0,
+        "gain": 4,
+        "tone": 6,
+        "mod": 3,
+        "time": 0,
+        "fb": 0,
+        "mix": 0,
+        "reverb": 8,
+        "ir_cab": 1,
+        "volume": 70,
+        "irSection": true,
+        "delaySection": true,
+        "toneSection": true
+      },
+      "notes": "Clean tone with chorus only (no delay). delaySection=true because mod=3 (chorus active), even though mix=0 (no delay)."
+    },
+    {
+      "id": "vp_20",
+      "name": "Dry Rhythm",
+      "knobs": {
+        "type": 2,
+        "gain": 5,
+        "tone": 7,
+        "mod": 7,
+        "time": 0,
+        "fb": 0,
+        "mix": 0,
+        "reverb": 0,
+        "ir_cab": 2,
+        "volume": 65,
+        "irSection": true,
+        "delaySection": false,
+        "toneSection": true
+      },
+      "notes": "Dry rhythm preset. delaySection=false is safe because mod=7 (no modulation) AND mix=0 (no delay)."
     }
   ]
 }

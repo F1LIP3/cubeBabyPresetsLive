@@ -21,7 +21,7 @@ export function computeKnobValues(
     ir_cab: pedalStates.ircab ? pedalParams.ircab.slot : 0,
     volume: pedalParams.volume.level,
     irSection: pedalStates.reverb || pedalStates.ircab,
-    delaySection: pedalStates.chorus || pedalStates.phaser,
+    delaySection: pedalStates.chorus || pedalStates.phaser || pedalStates.delay,
     toneSection: pedalStates.amp,
   };
 }

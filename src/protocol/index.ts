@@ -232,6 +232,11 @@ export interface KnobValues {
 }
 
 export function knobValuesToSettings(knobs: KnobValues): Settings {
+  // Ensure section B is ON if modulation (chorus/phaser) or delay (mix) is active.
+  // Saved presets may have stale delaySection:false while having mod/mix set,
+  // which would silently kill all of section B (modulation + delay).
+  const modActive = knobs.mod !== 7;
+  const delayActive = knobs.mix > 0;
   return {
     type: knobs.type,
     gain: knobs.gain,
@@ -244,7 +249,7 @@ export function knobValuesToSettings(knobs: KnobValues): Settings {
     modulation: knobs.mod,
     cabinet: knobs.ir_cab,
     irSection: knobs.irSection,
-    delaySection: knobs.delaySection,
+    delaySection: knobs.delaySection || modActive || delayActive,
     toneSection: knobs.toneSection,
   };
 }
