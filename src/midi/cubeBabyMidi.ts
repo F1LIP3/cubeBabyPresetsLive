@@ -236,12 +236,12 @@ export class CubeBabyMidi {
   }
 
   async applySettingsToDsp(settings: Settings): Promise<void> {
-    // Write full 16-byte block to slot A flash area (0x80000000) in one message.
-    // Single-byte writes to this area are reliable for real-time tweaks, but
-    // sending 13 sequential writes for all params is not — the pedal may drop
-    // or misapply some (notably delay section toggle byte 11). One batch write
-    // guarantees all params and section toggles take effect atomically.
-    const msg = buildWriteFlashPresetMessage('A', settings);
+    // Write full 16-byte block to active DSP area (0x0000) in one message.
+    // This loads the settings into the live sound without modifying any
+    // hardware flash slot (A/B/C). All hardware preset switching in
+    // advanced-live mode uses this — it lets the user load any slot's
+    // settings into the live DSP without corrupting the saved flash data.
+    const msg = buildWriteActivePresetMessage(settings);
     await this.sendAndWait(msg);
   }
 
@@ -251,7 +251,10 @@ export class CubeBabyMidi {
   }
 
   async saveActivePresetToSlot(preset: PresetName, settings: Settings): Promise<void> {
-    await this.writePreset(preset, settings);
+    // Write to flash memory so the save survives power cycle.
+    // buildWritePresetBytes writes to the live DSP area (0x0000/0x0010/0x0020)
+    // which does NOT persist. Flash writes use 0x80000000 + offset.
+    await this.writePresetToFlash(preset, settings);
   }
 
   async writePresetToFlash(preset: PresetName, settings: Settings): Promise<void> {

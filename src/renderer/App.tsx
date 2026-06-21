@@ -324,13 +324,18 @@ export default function App() {
     setKnobValues(cached);
     if (midiRef.current) {
       try {
-        await midiRef.current.switchPreset(preset, knobValuesToSettings(cached));
+        if (mode === 'advanced-live') {
+          adv.resetFromKnobs(cached);
+          await loadKnobsToPedal(cached);
+        } else {
+          await midiRef.current.switchPreset(preset, knobValuesToSettings(cached));
+        }
       } catch (err: unknown) {
         log(`Switch preset ${preset} failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     setStatusMsg(t('status.switched', { name: preset }), 'info');
-  }, [allKnobs, setStatusMsg, log, t]);
+  }, [allKnobs, mode, adv, loadKnobsToPedal, setStatusMsg, log, t]);
 
   const handleSelectVirtualPreset = useCallback(async (id: string) => {
     virt.select(id);

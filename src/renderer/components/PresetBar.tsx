@@ -24,7 +24,7 @@ export function PresetBar({ selectedPreset, mode, loading, onSelectPreset, onMod
             className={`preset-btn ${selectedPreset === p ? 'active' : ''}`}
             style={{ '--preset-color': PRESET_COLORS[p] } as React.CSSProperties}
             onClick={() => onSelectPreset(p)}
-            disabled={loading || mode === 'advanced-live'}
+            disabled={loading}
           >
             <span className="preset-btn-letter">{p}</span>
           </button>
