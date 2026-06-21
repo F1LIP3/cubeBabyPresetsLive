@@ -157,9 +157,15 @@ export default function App() {
           break;
         }
         case 'delay':
-          // Delay is toggled by mix only — zeroing time/fb or toggling
-          // section B would affect chorus/phaser. Mix=0 => delay off.
-          await mc.writeSingleKnob('mix', newOn ? adv.pedalParams.delay.mix : 0);
+          if (newOn) {
+            // Ensure section B is ON — delay needs the modulation+delay block
+            if (!adv.pedalStates.chorus && !adv.pedalStates.phaser && !adv.pedalStates.delay) {
+              await mc.toggleSection('B', true);
+            }
+            await mc.writeSingleKnob('mix', adv.pedalParams.delay.mix);
+          } else {
+            await mc.writeSingleKnob('mix', 0);
+          }
           break;
         case 'reverb':
           await mc.writeSingleKnob('reverb', newOn ? adv.pedalParams.reverb.reverb : 0);
@@ -191,6 +197,10 @@ export default function App() {
         mc.writeSingleKnob('mod', 9 + Math.max(0, Math.min(6, value))).catch(() => {});
         break;
       case 'delay':
+        if (param === 'mix' && value > 0) {
+          // Ensure section B is ON when enabling delay via mix slider
+          mc.toggleSection('B', true).catch(() => {});
+        }
         mc.writeSingleKnob(param, value).catch(() => {});
         break;
       case 'reverb':
