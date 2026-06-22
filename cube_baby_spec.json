@@ -1,7 +1,105 @@
 {
   "device": "Cube Baby",
-  "format_version": "1.1",
-  "description": "Specification for Cube Baby virtual bank presets. This file documents the working limits, logic, and constraints for generating valid presets.",
+  "description": "Specification for Cube Baby virtual bank presets. Documents factory amp models, IR cabinet profiles, working limits, logic, and constraints for generating valid presets.",
+
+  "amp_models": {
+    "description": "9 factory Amp Preamp models. The Type knob cycles through these models covering everything from classic clean tones to high-gain modern distortion.",
+    "0": {
+      "name": "US Clean",
+      "amp_lineage": "Fender Twin Reverb style",
+      "sonic_characteristics": "Transparent, high-headroom clean tone with a bright top end."
+    },
+    "1": {
+      "name": "UK Clean",
+      "amp_lineage": "VOX AC30 style",
+      "sonic_characteristics": "Classic British chime with warm, mid-focused bite when pushed."
+    },
+    "2": {
+      "name": "US Blues",
+      "amp_lineage": "Fender Bassman style",
+      "sonic_characteristics": "Edge-of-breakup grit that responds well to playing dynamics."
+    },
+    "3": {
+      "name": "UK Crunch",
+      "amp_lineage": "Marshall Plexi / JCM800 style",
+      "sonic_characteristics": "Classic rock crunch with a prominent midrange push."
+    },
+    "4": {
+      "name": "US Gold 100",
+      "amp_lineage": "Friedman / Boutique Hot-Rodded Marshall style",
+      "sonic_characteristics": "Modern, saturated British brown sound with tighter low end."
+    },
+    "5": {
+      "name": "Cali JP A",
+      "amp_lineage": "Mesa Boogie JP-2C / Mark Series style",
+      "sonic_characteristics": "Thick liquid lead tone, ideal for articulate soloing."
+    },
+    "6": {
+      "name": "German High-Gain",
+      "amp_lineage": "Diezel VH4 style",
+      "sonic_characteristics": "Deep, heavy high-gain tone with clear note separation for metal rhythm."
+    },
+    "7": {
+      "name": "US Modern High-Gain",
+      "amp_lineage": "Mesa Boogie Dual Rectifier style",
+      "sonic_characteristics": "Aggressive, scooped-mid high-gain with massive low-end wallop."
+    },
+    "8": {
+      "name": "UK Modern",
+      "amp_lineage": "Orange Rockerverb style",
+      "sonic_characteristics": "Fuzzy, dark, thick high-gain distortion with unique mid harmonics."
+    }
+  },
+
+  "ir_cabinets": {
+    "description": "9 factory Impulse Response (IR) Cabinet profiles (positions 0-8). Position 0 is a DI bypass (no simulation, flat response). Positions 1 through 8 are captured cabinet configurations.",
+    "0": {
+      "name": "DI Box",
+      "profile": "No Simulation",
+      "sonic_characteristics": "Flat response; useful for bypass or acoustic patches."
+    },
+    "1": {
+      "name": "Line 6 Vetta 1x12",
+      "profile": "1×12 Compact Cabinet",
+      "sonic_characteristics": "Compact, punchy, relatively flat mid-range response."
+    },
+    "2": {
+      "name": "Marshall 1960AV",
+      "profile": "4×12 with Celestion Vintage 30s",
+      "sonic_characteristics": "Mid-forward, aggressive projection; the rock/metal standard."
+    },
+    "3": {
+      "name": "Marshall 1960A T75",
+      "profile": "4×12 with Celestion G12T-75s",
+      "sonic_characteristics": "Slightly scooped mids with bright highs and deep bass."
+    },
+    "4": {
+      "name": "VHT Deliverance 2x12",
+      "profile": "2×12 Combination",
+      "sonic_characteristics": "Exceptionally tight low-end tracking; perfect for staccato riffing."
+    },
+    "5": {
+      "name": "Soldano 2x12",
+      "profile": "2×12 Combination",
+      "sonic_characteristics": "Smooth, warm compression; great for fluid lead sounds."
+    },
+    "6": {
+      "name": "Peavey 5150 + Mesa Oversized 4x12",
+      "profile": "Combined 4×12 Wall",
+      "sonic_characteristics": "Massive wall of sound; heavy low-end emphasis for metalcore/deathcore."
+    },
+    "7": {
+      "name": "JSX KT77 + Mesa Stiletto 4x12",
+      "profile": "4×12 with AKG C1000 mic",
+      "sonic_characteristics": "Articulate, mid-detailed tone with a crisp high-end response."
+    },
+    "8": {
+      "name": "Diezel V30 4x12",
+      "profile": "4×12 with Shure SM57 mic",
+      "sonic_characteristics": "Aggressive upper-mid cut with a modern, focused distortion frame."
+    }
+  },
+
   "section_layout": {
     "description": "The Cube Baby DSP is divided into three hardware sections. Each section can be bypassed independently via its flag.",
     "A: IR": {
@@ -20,6 +118,61 @@
       "note": "When toneSection is false, the amplifier model is bypassed."
     }
   },
+  "bank_file_structure": {
+    "format": {
+      "description": "The format identifier for virtual bank files. Must be exactly this string.",
+      "value": "cubebabyvirtualbank",
+      "type": "string"
+    },
+    "version": {
+      "description": "Schema version for forward compatibility.",
+      "value": 1,
+      "type": "integer"
+    },
+    "presets": {
+      "description": "Array of preset objects (max 50).",
+      "type": "array",
+      "items": {
+        "fields": {
+          "id": {
+            "description": "Unique preset identifier. Format: 'vp_' followed by a positive integer (e.g. 'vp_1', 'vp_42'). Must be unique within the file. Leading zeros are valid but not generated by the app.",
+            "type": "string",
+            "pattern": "^vp_\\d+$"
+          },
+          "name": {
+            "description": "Human-readable preset name shown in the UI.",
+            "type": "string"
+          },
+          "knobs": {
+            "description": "All knob parameter values and section flags (see parameter_definitions below).",
+            "type": "object",
+            "$ref": "#/parameter_definitions/knobs"
+          },
+          "created": {
+            "description": "ISO 8601 timestamp when the preset was first created.",
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated": {
+            "description": "ISO 8601 timestamp when the preset was last modified.",
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "name", "knobs", "created", "updated"]
+      }
+    },
+    "created": {
+      "description": "ISO 8601 timestamp when the bank file was first generated/exported.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated": {
+      "description": "ISO 8601 timestamp of the last bank modification (optional; the export code does not write this field, but imported banks may include it).",
+      "type": "string",
+      "format": "date-time"
+    }
+  },
   "critical_rules": [
     "MODULATION AND DELAY MUST HAVE delaySection=true: If knobValues.mod !== 7 (meaning chorus or phaser is active) OR knobValues.mix > 0 (delay is on), delaySection MUST be set to true. Otherwise the entire modulation+delay block is bypassed and those effects will be silent.",
     "delaySection FALSE is only safe when BOTH mod===7 AND mix===0: It is acceptable to set delaySection=false only when there is no modulation effect (mod=7) and no delay (mix=0).",
@@ -29,20 +182,20 @@
   "parameter_definitions": {
     "knobs": {
       "type": {
-        "description": "The core amplifier/effect model type.",
+        "description": "The core amplifier/effect model type. Maps to entries in the amp_models lookup table.",
         "type": "integer",
         "min": 0,
         "max": 8,
         "mapping": {
-          "0": "P-Zone Clean",
-          "1": "US Gold 100",
-          "2": "Two Stone OD",
-          "3": "Doctor3 B",
-          "4": "Cali JP A",
-          "5": "Day Tripper",
-          "6": "Shittcow Dist",
-          "7": "Wo Stone OD",
-          "8": "Mr Smith Dist"
+          "0": "US Clean",
+          "1": "UK Clean",
+          "2": "US Blues",
+          "3": "UK Crunch",
+          "4": "US Gold 100",
+          "5": "Cali JP A",
+          "6": "German High-Gain",
+          "7": "US Modern High-Gain",
+          "8": "UK Modern"
         }
       },
       "gain": {
@@ -58,30 +211,30 @@
         "max": 15
       },
       "mod": {
-        "description": "Modulation type and intensity. 0-6 = Chorus (0=most intense, 6=least), 7 = Off/neutral, 8-15 = Phaser (8=least, 15=most intense). Chorus and phaser are mutually exclusive.",
+        "description": "Modulation type and intensity. 0-6 = Chorus (0=most intense → 6=least intense, inverted scale). 7 = Off/neutral. 8-15 = Phaser (8=least intense → 15=most intense, direct scale). Chorus and phaser are mutually exclusive — 7 is the only value for no modulation.",
         "type": "integer",
         "min": 0,
         "max": 15
       },
       "time": {
-        "description": "Delay time in ms (or modulation speed when mod is active).",
+        "description": "Delay time step index (or modulation speed when mod is active). Range 0-31 is a hardware step index, not milliseconds.",
         "type": "integer",
         "min": 0,
         "max": 31,
-        "note": "When delay pedal is toggled OFF in live mode, time and feedback are preserved (not zeroed). Only mix is set to 0."
+        "note": "When delay pedal is toggled OFF in live mode, time and feedback are preserved (not zeroed). Only mix is set to 0. Values 0-31 are hardware step indices — no ms↔index mapping is documented."
       },
       "fb": {
-        "description": "Delay feedback amount (number of repeats). Higher values = more repeats.",
+        "description": "Delay feedback amount (number of repeats). Higher values = more repeats. Only audible when mix > 0 (delay active).",
         "type": "integer",
         "min": 0,
         "max": 127
       },
       "mix": {
-        "description": "Wet/Dry mix for the delay effect. 0 = no delay (muted), max = full wet.",
+        "description": "Wet/Dry mix for the delay effect. 0 = no delay (muted), max = full wet. Max 118 is a hardware-imposed limit (not 127 like most other knobs).",
         "type": "integer",
         "min": 0,
         "max": 118,
-        "note": "Delay pedal ON/OFF is controlled by mix only: 0=OFF, saved value=ON. Time and feedback are not touched when toggling delay."
+        "note": "Delay pedal ON/OFF is controlled by mix only: 0=OFF, saved value=ON. Time and feedback are not touched when toggling delay. Values 0 and 118 are hardware limits."
       },
       "reverb": {
         "description": "Reverb decay/size. Requires irSection=true to be heard.",
@@ -90,20 +243,20 @@
         "max": 15
       },
       "ir_cab": {
-        "description": "Impulse Response Cabinet selection. Requires irSection=true to be heard.",
+        "description": "Impulse Response Cabinet selection. Maps to entries in the ir_cabinets lookup table. Requires irSection=true to be heard.",
         "type": "integer",
         "min": 0,
         "max": 8,
         "mapping": {
-          "0": "IR Off (cabinet bypassed)",
-          "1": "Line 6 Vetta 2×12",
-          "2": "Marshall 1960AV 4×12",
-          "3": "Marshall 1960A T75 4×12",
-          "4": "VHT Deliverance 2×12",
-          "5": "Soldano 2×12",
-          "6": "Peavey 5150+Mesa 4×12",
-          "7": "JSX + Mesa C1000 4×12",
-          "8": "Diezel V30 SM57 4×12"
+          "0": "DI Box",
+          "1": "Line 6 Vetta 1x12",
+          "2": "Marshall 1960AV",
+          "3": "Marshall 1960A T75",
+          "4": "VHT Deliverance 2x12",
+          "5": "Soldano 2x12",
+          "6": "Peavey 5150 + Mesa Oversized 4x12",
+          "7": "JSX KT77 + Mesa Stiletto 4x12",
+          "8": "Diezel V30 4x12"
         }
       },
       "volume": {
@@ -132,6 +285,17 @@
       }
     }
   },
+  "generator_checklist": [
+    "Set delaySection to true when mod !== 7 OR mix > 0. Only set delaySection=false when mod===7 AND mix===0 simultaneously.",
+    "mod=7 is the only neutral/off value for modulation. Values 0-6 are chorus (inverted: 0=most intense, 6=least). Values 8-15 are phaser (direct: 8=least, 15=most).",
+    "ir_cab range is 0-8 (9 entries). Position 0 is DI bypass (flat response, no simulation).",
+    "fb (feedback) is only audible when mix > 0 (delay active). When mix=0, fb can be any value 0-127 but will not be heard.",
+    "time range is 0-31. These are hardware step indices, not milliseconds. No ms↔index mapping is documented.",
+    "mix max is 118, not 127. This is a hardware-imposed limit.",
+    "Volume range is 0-127 (same as fb).",
+    "id must follow 'vp_<integer>' pattern (e.g. 'vp_1'). Leading zeros are allowed but not generated by the app.",
+    "Bank format string must be exactly 'cubebabyvirtualbank' (lowercase, no spaces)."
+  ],
   "example_presets": [
     {
       "id": "vp_17",
@@ -171,7 +335,7 @@
         "delaySection": true,
         "toneSection": true
       },
-      "notes": "High gain lead with delay. delaySection=true because mix=40 (delay active). mod=7 (no modulation)."
+      "notes": "High gain lead with delay. delaySection=true because mix=40 (delay active). mod=7 (no modulation). type=8 is UK Modern (Orange Rockerverb style)."
     },
     {
       "id": "vp_19",
@@ -211,7 +375,7 @@
         "delaySection": false,
         "toneSection": true
       },
-      "notes": "Dry rhythm preset. delaySection=false is safe because mod=7 (no modulation) AND mix=0 (no delay)."
+      "notes": "Dry rhythm preset. delaySection=false is safe because mod=7 (no modulation) AND mix=0 (no delay). type=2 is US Blues (Fender Bassman style)."
     }
   ]
 }
